@@ -12,6 +12,7 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 - **Units: 1 Blender unit = 1 mm.** `bambi new` creates `model.blend` with unit scale 0.001 / millimetres. Model at real size in mm; the STL exporter writes raw units.
 - Z is up and the bed is z=0. `bambi blender orient <session>` drops objects onto the bed.
 - P1S build volume: 256 x 256 x 256 mm.
+- Build plate defaults to Textured PEI (`plate` in `session.toml` or `--plate`). Bambu rejects some filament/plate pairs, e.g. PETG on the Cool Plate.
 - Only visible mesh objects are exported. Hide helper/reference geometry.
 
 ## Working live through blender-mcp
@@ -20,6 +21,7 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 3. `uv run bambi build <session>` = export, then check, then slice.
 
 ## CLI
+`just` wraps the common commands (`just` lists them: `just new/build/slice/status/print ...`). The full CLI:
 ```
 bambi new <name>            bambi ls
 bambi export <s>            bambi check <s>        bambi slice <s> [--process --filament]
@@ -34,4 +36,4 @@ bambi printer status        bambi printer send <s> [--start] [--ams-slot N] [-y]
 - `.env` holds the printer access code. Never commit it or print it.
 
 ## Dev
-`uv run pytest`, `uv run ruff check . && uv run ruff format .`
+`just ci` (ruff + pytest), `just fmt`

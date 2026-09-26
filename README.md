@@ -5,18 +5,19 @@ Blender → Bambu Studio → Bambu Lab P1S sandbox.
 ## Setup
 ```sh
 brew install --cask blender bambu-studio
-uv sync
-cp .env.example .env              # add printer IP, access code, serial (LAN mode)
-uv run bambi profiles sync        # flatten Bambu Studio system profiles into profiles/
+brew install just
+just setup                        # uv sync, create .env, flatten Bambu Studio profiles into profiles/
+$EDITOR .env                      # printer IP, access code, serial (LAN mode)
 ```
 Blender needs the [blender-mcp](https://github.com/ahujasid/blender-mcp) add-on for live modeling with Claude.
 
 ## Workflow
 ```sh
-uv run bambi new phone-stand          # sessions/2026-09-26-phone-stand/ with an mm-unit model.blend
-uv run bambi blender open phone-stand # model it (by hand or via Claude + MCP), save
-uv run bambi build phone-stand        # export STL, then run checks, then slice to out/*.gcode.3mf
-uv run bambi printer status
-uv run bambi printer send phone-stand --start
+just new phone-stand       # sessions/2026-09-26-phone-stand/ with an mm-unit model.blend, opened in Blender
+just build phone-stand     # export STL, then run checks, then slice to out/*.gcode.3mf
+just slice phone-stand --filament petg_hf --plate "Engineering Plate"
+just status                # printer status
+just print phone-stand     # upload and start (asks first)
 ```
-Per-session slice settings (process, filament, AMS slot) live in `session.toml`.
+`just` lists every recipe; each wraps `uv run bambi ...`, which you can call directly for anything not covered.
+Per-session slice settings (process, filament, build plate, AMS slot) live in `session.toml`.

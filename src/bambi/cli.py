@@ -149,6 +149,9 @@ def slice_cmd(
         str | None, typer.Option(help="profiles/filament/<name>")
     ] = None,
     machine: Annotated[str | None, typer.Option(help="profiles/machine/<name>")] = None,
+    plate: Annotated[
+        str | None, typer.Option(help=f"Build plate: {', '.join(slicer.PLATES)}")
+    ] = None,
 ) -> None:
     """Slice exports/ into out/<session>.gcode.3mf with Bambu Studio."""
     s = _session(ref)
@@ -159,23 +162,24 @@ def slice_cmd(
     if not models:
         console.print("[red]no exports; run `bambi export` first[/red]")
         raise typer.Exit(1)
-    job = slicer.SliceJob(
-        models=models,
-        output=s.out / f"{s.name}.gcode.3mf",
-        machine=machine or cfg.get("machine", "p1s_0.4"),
-        process=process or cfg.get("process", "0.20mm_standard"),
-        filament=filament or cfg.get("filament", "pla_basic"),
-        orient=cfg.get("orient", True),
-        arrange=cfg.get("arrange", True),
-    )
     try:
+        job = slicer.SliceJob(
+            models=models,
+            output=s.out / f"{s.name}.gcode.3mf",
+            machine=machine or cfg.get("machine", "p1s_0.4"),
+            process=process or cfg.get("process", "0.20mm_standard"),
+            filament=filament or cfg.get("filament", "pla_basic"),
+            orient=cfg.get("orient", True),
+            arrange=cfg.get("arrange", True),
+            plate=plate or cfg.get("plate", "Textured PEI Plate"),
+        )
         res = slicer.run(job)
-    except (slicer.SliceError, FileNotFoundError) as e:
+    except (slicer.SliceError, FileNotFoundError, ValueError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
     console.print(
         f"[green]sliced[/green] {res.output.relative_to(s.path)}: "
-        f"{res.duration}, {res.grams:.1f} g ({job.process}, {job.filament})"
+        f"{res.duration}, {res.grams:.1f} g ({job.process}, {job.filament}, {job.plate})"
     )
 
 

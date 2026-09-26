@@ -11,11 +11,12 @@ def test_command_uses_local_profiles(tmp_path):
     job = slicer.SliceJob(
         models=[Path("a.stl"), Path("b.stl")], output=tmp_path / "x.gcode.3mf"
     )
-    cmd = job.command(bin_path=Path("/bin/BambuStudio"))
+    process = tmp_path / "process.json"
+    cmd = job.command(process, bin_path=Path("/bin/BambuStudio"))
     root = get_settings().profiles_dir
     assert cmd[0] == "/bin/BambuStudio"
     assert cmd[cmd.index("--load-settings") + 1] == (
-        f"{root / 'machine/p1s_0.4.json'};{root / 'process/0.20mm_standard.json'}"
+        f"{root / 'machine/p1s_0.4.json'};{process}"
     )
     assert cmd[cmd.index("--load-filaments") + 1] == str(
         root / "filament/pla_basic.json"
@@ -30,7 +31,17 @@ def test_missing_profile_is_clear(tmp_path):
         models=[], output=tmp_path / "x.gcode.3mf", filament="unobtainium"
     )
     with pytest.raises(FileNotFoundError, match="profiles sync"):
-        job.command()
+        job.command(tmp_path / "process.json")
+
+
+def test_plate_is_applied_to_process(tmp_path):
+    out = tmp_path / "x.gcode.3mf"
+    default = slicer.SliceJob(models=[], output=out)
+    assert default.process_config()["curr_bed_type"] == "Textured PEI Plate"
+    cool = slicer.SliceJob(models=[], output=out, plate="Cool Plate")
+    assert cool.process_config()["curr_bed_type"] == "Cool Plate"
+    with pytest.raises(ValueError, match="unknown plate"):
+        slicer.SliceJob(models=[], output=out, plate="Glass")
 
 
 def test_parse_result_sums_plates(tmp_path):
