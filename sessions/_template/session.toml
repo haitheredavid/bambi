@@ -1,0 +1,13 @@
+name = "{{name}}"
+created = "{{date}}"
+intent = ""                   # what is this print for?
+
+[slice]
+machine = "p1s_0.4"           # profiles/machine/<name>.json
+process = "0.20mm_standard"   # profiles/process/<name>.json
+filament = "pla_basic"        # profiles/filament/<name>.json
+# orient = true               # let Bambu Studio auto-orient
+# arrange = true              # let Bambu Studio auto-arrange on the plate
+
+[print]
+ams_slot = 0                  # AMS tray (0-3), or -1 for external spool

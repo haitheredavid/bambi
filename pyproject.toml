@@ -1,0 +1,30 @@
+[project]
+name = "bambi"
+version = "0.1.0"
+description = "Blender -> Bambu Studio -> Bambu P1S 3D printing sandbox"
+readme = "README.md"
+authors = [
+    { name = "David Morgan", email = "dmorgan@suffolk.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "bambulabs-api>=2.6.6",
+    "numpy>=2.5.3",
+    "pydantic-settings>=2.15.0",
+    "rich>=15.0.0",
+    "trimesh>=5.1.0",
+    "typer>=0.27.2",
+]
+
+[project.scripts]
+bambi = "bambi:main"
+
+[build-system]
+requires = ["uv_build>=0.10.11,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
