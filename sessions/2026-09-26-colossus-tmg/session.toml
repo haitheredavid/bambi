@@ -1,0 +1,14 @@
+name = "colossus-tmg"
+created = "2026-09-26"
+intent = "Prototype Protoss Colossus for StarCraft TMG: ~170 mm tall, 120 mm beveled base with terrain and 5x3 mm magnet slot, multi-part kit (base, hull, 4 legs) joined with pegs and glue."                   # what is this print for?
+
+[slice]
+machine = "p1s_0.4"           # profiles/machine/<name>.json
+process = "0.12mm_fine"   # profiles/process/<name>.json
+filament = "pla_basic"        # profiles/filament/<name>.json
+plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plate, Supertack Plate
+orient = false                # parts are modelled in print orientation
+arrange = true              # let Bambu Studio auto-arrange on the plate
+
+[print]
+ams_slot = 0                  # AMS tray (0-3), or -1 for external spool

@@ -16,3 +16,6 @@ wheels/
 sessions/*/out/*
 !sessions/*/out/.gitkeep
 .DS_Store
+
+# third-party reference images (not ours to publish)
+sessions/refs/

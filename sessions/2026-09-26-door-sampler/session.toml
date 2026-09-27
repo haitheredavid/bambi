@@ -1,0 +1,14 @@
+name = "door-sampler"
+created = "2026-09-26"
+intent = "Desk display of five world door styles (shoji, Dutch, Moorish, Romanesque, Gothic), each in its own frame on a shared base; first end-to-end pipeline test"                   # what is this print for?
+
+[slice]
+machine = "p1s_0.4"           # profiles/machine/<name>.json
+process = "0.16mm_optimal"    # profiles/process/<name>.json
+filament = "pla_basic"        # profiles/filament/<name>.json
+plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plate, Supertack Plate
+# orient = true               # let Bambu Studio auto-orient
+# arrange = true              # let Bambu Studio auto-arrange on the plate
+
+[print]
+ams_slot = 0                  # AMS tray (0-3), or -1 for external spool
