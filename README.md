@@ -1,5 +1,7 @@
 # bambi
 
+![a baby deer asleep on the bed of a 3d printer, halfway printed](docs/hero.svg)
+
 ## what
 
 Wanting a 3d printer had been a talking point for so long that it was starting to become part of my identity. To fix that, my wife surprised me one day with a p1s. Same energy as the christmas my brothers and I got an n64: pure boyish joy + excitement + chaos.

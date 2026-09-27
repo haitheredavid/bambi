@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600">
+  <title>bambi: a fawn asleep mid-print</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2130"/><stop offset="1" stop-color="#12151e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.05" r="0.9">
+      <stop offset="0" stop-color="#ffd9a8" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#ff9f5a" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e0955a"/><stop offset="1" stop-color="#b8683a"/>
+    </linearGradient>
+    <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a404b"/><stop offset="1" stop-color="#262a32"/>
+    </linearGradient>
+    <pattern id="layers" width="8" height="5" patternUnits="userSpaceOnUse">
+      <rect width="8" height="1.6" y="3.4" fill="#7a3f1e" opacity="0.35"/>
+      <rect width="8" height="1" y="0" fill="#ffd2a6" opacity="0.18"/>
+    </pattern>
+    <pattern id="infill" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <path d="M0 0 H14 M0 0 V14" stroke="#f0a86b" stroke-width="1.2" opacity="0.55"/>
+    </pattern>
+    <pattern id="pei" width="6" height="6" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="0.9" fill="#6e5328" opacity="0.6"/>
+    </pattern>
+    <clipPath id="deer">
+      <ellipse cx="610" cy="424" rx="104" ry="50"/>
+      <ellipse cx="676" cy="420" rx="56" ry="52"/>
+      <ellipse cx="540" cy="430" rx="40" ry="28" transform="rotate(-35 540 430)"/>
+      <ellipse cx="508" cy="442" rx="42" ry="31"/>
+      <ellipse cx="470" cy="452" rx="18" ry="14"/>
+      <ellipse cx="556" cy="394" rx="44" ry="14" transform="rotate(-42 556 394)"/>
+      <ellipse cx="734" cy="392" rx="10" ry="14" transform="rotate(30 734 392)"/>
+      <rect x="540" y="458" width="80" height="16" rx="8"/>
+      <rect x="690" y="456" width="62" height="18" rx="9"/>
+    </clipPath>
+    <clipPath id="below"><rect x="0" y="398" width="1200" height="600"/></clipPath>
+    <clipPath id="above"><rect x="0" y="0" width="1200" height="394"/></clipPath>
+    <clipPath id="current"><rect x="0" y="394" width="700" height="4"/></clipPath>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+
+  <rect width="1200" height="600" rx="24" fill="url(#bg)"/>
+
+  <!-- floating layer stacks, background -->
+  <g fill="#e0955a" opacity="0.10">
+    <rect x="130" y="150" width="120" height="10" rx="5"/><rect x="140" y="164" width="100" height="10" rx="5"/><rect x="150" y="178" width="80" height="10" rx="5"/>
+    <rect x="960" y="400" width="110" height="10" rx="5"/><rect x="970" y="414" width="90" height="10" rx="5"/><rect x="980" y="428" width="70" height="10" rx="5"/>
+    <rect x="950" y="120" width="60" height="8" rx="4"/><rect x="955" y="132" width="50" height="8" rx="4"/>
+    <rect x="190" y="440" width="70" height="8" rx="4"/><rect x="195" y="452" width="60" height="8" rx="4"/>
+  </g>
+
+  <!-- floor shadow -->
+  <ellipse cx="600" cy="578" rx="260" ry="14" fill="#000" opacity="0.35"/>
+
+  <!-- printer shell -->
+  <rect x="385" y="40" width="430" height="530" rx="30" fill="url(#shell)"/>
+  <rect x="385" y="40" width="430" height="34" rx="30" fill="#444a56"/>
+  <rect x="385" y="58" width="430" height="16" fill="#444a56"/>
+  <rect x="392" y="74" width="416" height="2" fill="#1a1d23" opacity="0.6"/>
+
+  <!-- chamber -->
+  <rect x="412" y="92" width="376" height="418" rx="14" fill="#0f1217"/>
+  <rect x="412" y="92" width="376" height="418" rx="14" fill="url(#glow)"/>
+  <rect x="440" y="98" width="140" height="4" rx="2" fill="#ffe2b8" opacity="0.8"/>
+
+  <!-- bed -->
+  <rect x="446" y="486" width="308" height="14" rx="3" fill="#2c3038"/>
+  <rect x="440" y="474" width="320" height="12" rx="3" fill="#b8924f"/>
+  <rect x="440" y="474" width="320" height="12" rx="3" fill="url(#pei)"/>
+
+  <!-- ghost of what's left to print: infill preview -->
+  <g clip-path="url(#above)">
+    <g clip-path="url(#deer)">
+      <rect x="400" y="300" width="400" height="200" fill="#e0955a" opacity="0.16"/>
+      <rect x="400" y="300" width="400" height="200" fill="url(#infill)" opacity="0.95"/>
+    </g>
+  </g>
+
+  <!-- printed part -->
+  <g clip-path="url(#below)">
+    <g clip-path="url(#deer)">
+      <rect x="400" y="300" width="400" height="200" fill="url(#body)"/>
+      <g fill="#fbe3c6"><ellipse cx="600" cy="392" rx="9" ry="6"/><ellipse cx="632" cy="382" rx="7" ry="5"/><ellipse cx="566" cy="402" rx="7" ry="5"/><ellipse cx="660" cy="396" rx="8" ry="5"/><ellipse cx="620" cy="410" rx="6" ry="4"/><ellipse cx="690" cy="386" rx="7" ry="5"/><ellipse cx="585" cy="420" rx="5" ry="3.5"/><ellipse cx="648" cy="416" rx="6" ry="4"/></g>
+      <ellipse cx="470" cy="452" rx="18" ry="14" fill="#f2c79a"/>
+      <rect x="400" y="300" width="400" height="200" fill="url(#layers)"/>
+    </g>
+    <circle cx="455" cy="450" r="5" fill="#3a2418"/>
+    <ellipse cx="562" cy="390" rx="28" ry="6" transform="rotate(-42 556 394)" fill="#7a3f1e" opacity="0.5"/>
+    <path d="M488 440 q 9 7 18 0" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- layer being extruded right now -->
+  <g clip-path="url(#current)">
+    <g clip-path="url(#deer)">
+      <rect x="400" y="394" width="400" height="4" fill="#ffc98a"/>
+    </g>
+  </g>
+  <circle cx="700" cy="396" r="10" fill="#ffb066" opacity="0.7" filter="url(#soft)"/>
+
+  <!-- zzz -->
+  <g fill="#f3e6d4" font-family="ui-rounded, 'SF Pro Rounded', 'Nunito', system-ui, sans-serif" font-weight="800">
+    <text x="462" y="318" font-size="18" opacity="0.55">z</text>
+    <text x="478" y="288" font-size="26" opacity="0.72">z</text>
+    <text x="500" y="250" font-size="36" opacity="0.9">Z</text>
+  </g>
+
+  <!-- gantry + toolhead -->
+  <rect x="412" y="334" width="376" height="10" fill="#565d6a"/>
+  <rect x="412" y="336" width="376" height="2" fill="#7a8290"/>
+  <g transform="translate(700 0)">
+    <rect x="-34" y="318" width="68" height="60" rx="8" fill="#d9dde3"/>
+    <rect x="-34" y="318" width="68" height="14" rx="7" fill="#eef0f3"/>
+    <rect x="-22" y="340" width="44" height="4" rx="2" fill="#9aa1ab"/>
+    <rect x="-22" y="348" width="44" height="4" rx="2" fill="#9aa1ab"/>
+    <circle cx="20" cy="327" r="2.5" fill="#6bd46b"/>
+    <path d="M-10 378 H10 L4 390 H-4 Z" fill="#8a9099"/>
+    <path d="M-4 390 H4 L1.5 394 H-1.5 Z" fill="#c9a24a"/>
+  </g>
+  <!-- filament tube -->
+  <path d="M710 318 C 720 200, 760 140, 790 110" stroke="#e8e8ea" stroke-width="4" fill="none" opacity="0.5"/>
+
+  <!-- glass door reflections -->
+  <path d="M430 92 L520 92 L412 260 L412 120 Z" fill="#fff" opacity="0.04"/>
+  <path d="M600 510 L700 510 L788 380 L788 330 Z" fill="#fff" opacity="0.03"/>
+  <rect x="412" y="92" width="376" height="418" rx="14" fill="none" stroke="#5b626e" stroke-width="3"/>
+  <rect x="780" y="250" width="6" height="90" rx="3" fill="#6a717d"/>
+
+  <!-- front panel -->
+  <rect x="430" y="526" width="92" height="30" rx="5" fill="#0d1014"/>
+  <text x="440" y="546" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="#6bd46b">62%</text>
+  <rect x="474" y="538" width="40" height="5" rx="2.5" fill="#23303a"/>
+  <rect x="474" y="538" width="25" height="5" rx="2.5" fill="#6bd46b"/>
+  <text x="770" y="548" text-anchor="end" font-family="ui-rounded, system-ui, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#7d8491">BAMBI</text>
+</svg>
