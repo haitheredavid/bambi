@@ -68,6 +68,20 @@ slice session *flags:
 build session:
     {{bambi}} build {{session}}
 
+# render a scene's animation to out/<session>-assembly.mp4 + .gif (save in Blender first)
+anim session scene="Assembly Anim":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    read -r dir blender < <(uv run python -c 'import sys; from bambi.config import get_settings; from bambi.session import resolve; print(resolve(sys.argv[1]).path, get_settings().blender_bin)' "{{session}}")
+    out="${dir:?}/out"; name="$(basename "$dir")-assembly"
+    mkdir -p "$out/anim" && rm -f "$out"/anim/f*.png
+    "$blender" -b "$dir/model.blend" -S "{{scene}}" -o "$out/anim/f####" -F PNG -a 2>&1 | grep -E "Error|Saved: .*f0001" || true
+    ls "$out"/anim/f*.png >/dev/null
+    fps=$("$blender" -b "$dir/model.blend" -S "{{scene}}" --python-expr 'import bpy; print("FPS", bpy.context.scene.render.fps)' 2>/dev/null | awk '/^FPS/{print $2}')
+    ffmpeg -y -loglevel error -framerate "${fps:-24}" -i "$out/anim/f%04d.png" -c:v libx264 -pix_fmt yuv420p -crf 18 "$out/$name.mp4"
+    ffmpeg -y -loglevel error -i "$out/$name.mp4" -vf "fps=15,scale=540:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" "$out/$name.gif"
+    echo "wrote $out/$name.mp4 and $name.gif ($(ls "$out"/anim/f*.png | wc -l | tr -d ' ') frames)"
+
 # --- printer -----------------------------------------------------------------
 
 # printer status (read-only)
