@@ -11,4 +11,4 @@ orient = false                # parts are modelled in print orientation
 arrange = true              # let Bambu Studio auto-arrange on the plate
 
 [print]
-ams_slot = 0                  # AMS tray (0-3), or -1 for external spool
+ams_slot = 3                  # AMS tray (0-3), or -1 for external spool
