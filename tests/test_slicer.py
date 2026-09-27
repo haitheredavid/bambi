@@ -24,11 +24,66 @@ def test_command_uses_local_profiles(tmp_path):
     assert cmd[cmd.index("--outputdir") + 1] == str(tmp_path)
     assert cmd[cmd.index("--export-3mf") + 1] == "x.gcode.3mf"
     assert cmd[-2:] == ["a.stl", "b.stl"]
+    assert "--load-assemble-list" not in cmd
+
+
+def test_multicolor_command(tmp_path):
+    job = slicer.SliceJob(
+        models=[Path("a.stl"), Path("b.stl"), Path("c.stl")],
+        output=tmp_path / "x.gcode.3mf",
+        filaments=[slicer.Filament("pla_basic"), slicer.Filament("petg_hf")],
+        object_filaments=[1, 2, 1],
+    )
+    [plate] = job.assemble_list()["plates"]
+    assert plate["need_arrange"] is True
+    assert [(o["path"], o["filaments"]) for o in plate["objects"]] == [
+        ("a.stl", [1]),
+        ("b.stl", [2]),
+        ("c.stl", [1]),
+    ]
+    with pytest.raises(ValueError, match="assemble list"):
+        job.command(tmp_path / "process.json")
+    files = [tmp_path / "f1.json", tmp_path / "f2.json"]
+    asm = tmp_path / "assemble.json"
+    cmd = job.command(tmp_path / "process.json", files, asm)
+    assert cmd[cmd.index("--load-filaments") + 1] == f"{files[0]};{files[1]}"
+    assert cmd[cmd.index("--load-assemble-list") + 1] == str(asm)
+    assert "--allow-multicolor-oneplate" in cmd
+    # The CLI rejects model files and transforms alongside an assemble list.
+    assert "a.stl" not in cmd and "--orient" not in cmd and "--arrange" not in cmd
+
+
+def test_filament_ids_validated(tmp_path):
+    out = tmp_path / "x.gcode.3mf"
+    two = [slicer.Filament(), slicer.Filament()]
+    with pytest.raises(ValueError, match="out of range"):
+        slicer.SliceJob(
+            models=[Path("a.stl")], output=out, filaments=two, object_filaments=[3]
+        )
+    with pytest.raises(ValueError, match="2 filament ids for 1 models"):
+        slicer.SliceJob(
+            models=[Path("a.stl")], output=out, filaments=two, object_filaments=[1, 2]
+        )
+    with pytest.raises(ValueError, match="filaments"):
+        slicer.SliceJob(models=[], output=out, filaments=[])
+
+
+def test_filament_colour_override(tmp_path):
+    job = slicer.SliceJob(
+        models=[],
+        output=tmp_path / "x.gcode.3mf",
+        filaments=[slicer.Filament(), slicer.Filament(color="#FF0000")],
+    )
+    plain, red = job.filament_configs()
+    assert red["filament_colour"] == ["#FF0000"]
+    assert plain.get("filament_colour") != ["#FF0000"]
 
 
 def test_missing_profile_is_clear(tmp_path):
     job = slicer.SliceJob(
-        models=[], output=tmp_path / "x.gcode.3mf", filament="unobtainium"
+        models=[],
+        output=tmp_path / "x.gcode.3mf",
+        filaments=[slicer.Filament("unobtainium")],
     )
     with pytest.raises(FileNotFoundError, match="profiles sync"):
         job.command(tmp_path / "process.json")
@@ -57,6 +112,7 @@ def test_parse_result_sums_plates(tmp_path):
     r = slicer.parse_result(tmp_path / "x.gcode.3mf", raw)
     assert r.seconds == 3600.0
     assert r.grams == 6.5
+    assert r.grams_per_filament == [4.5, 2.0]
     assert r.duration == "1h 00m"
 
 

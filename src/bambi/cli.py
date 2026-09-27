@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from bambi import blender, mesh, profiles, session, slicer
@@ -32,7 +33,7 @@ def _session(ref: str) -> session.Session:
     try:
         return session.resolve(ref)
     except LookupError as e:
-        console.print(f"[red]{e}[/red]")
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
 
 
@@ -156,6 +157,12 @@ def slice_cmd(
     plate: Annotated[
         str | None, typer.Option(help=f"Build plate: {', '.join(slicer.PLATES)}")
     ] = None,
+    ams: Annotated[
+        bool,
+        typer.Option(
+            "--ams", help="Fill filaments missing profile/color from the live AMS."
+        ),
+    ] = False,
 ) -> None:
     """Slice exports/ into out/<session>.gcode.3mf with Bambu Studio."""
     s = _session(ref)
@@ -167,35 +174,59 @@ def slice_cmd(
         console.print("[red]no exports; run `bambi export` first[/red]")
         raise typer.Exit(1)
     try:
+        if filament:  # override forces a single-filament print
+            filaments, ids = [slicer.Filament(filament)], None
+        else:
+            filaments = s.filaments()
+            if ams:
+                filaments = _ams_module().fill_all(filaments, _live_trays())
+            ids = s.object_filament_ids(models) if len(filaments) > 1 else None
         job = slicer.SliceJob(
             models=models,
             output=s.out / f"{s.name}.gcode.3mf",
             machine=machine or cfg.get("machine", "p1s_0.4"),
             process=process or cfg.get("process", "0.20mm_standard"),
-            filament=filament or cfg.get("filament", "pla_basic"),
+            filaments=filaments,
+            object_filaments=ids,
             orient=cfg.get("orient", True),
             arrange=cfg.get("arrange", True),
             plate=plate or cfg.get("plate", "Textured PEI Plate"),
         )
         res = slicer.run(job)
-    except (slicer.SliceError, FileNotFoundError, ValueError) as e:
-        console.print(f"[red]{e}[/red]")
+    except (slicer.SliceError, FileNotFoundError, LookupError, ValueError) as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     console.print(
         f"[green]sliced[/green] {res.output.relative_to(s.path)}: "
-        f"{res.duration}, {res.grams:.1f} g ({job.process}, {job.filament}, {job.plate})"
+        f"{res.duration}, {res.grams:.1f} g "
+        f"({job.process}, {job.filament_names}, {job.plate})"
     )
+    if job.multicolor:
+        for n, f in enumerate(job.filaments, start=1):
+            used = [m.stem for m, i in zip(models, ids or []) if i == n]
+            grams = (
+                res.grams_per_filament[n - 1] if n <= len(res.grams_per_filament) else 0
+            )
+            console.print(
+                f"  filament {n}: {f.profile} {f.color or ''} "
+                f"-> AMS slot {f.ams_slot}, {grams:.1f} g: {', '.join(used) or '-'}"
+            )
 
 
 @app.command()
-def build(ref: SessionArg) -> None:
+def build(
+    ref: SessionArg,
+    ams: Annotated[
+        bool, typer.Option("--ams", help="Fill filaments from the live AMS.")
+    ] = False,
+) -> None:
     """export -> check -> slice."""
     export(ref)
     try:
         check(ref)
     except typer.Exit:
         console.print("[yellow]checks reported problems; slicing anyway[/yellow]")
-    slice_cmd(ref)
+    slice_cmd(ref, ams=ams)
 
 
 @app.command()
@@ -209,7 +240,7 @@ def studio(ref: SessionArg) -> None:
     try:
         slicer.open_in_studio(sliced[-1])
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        console.print(f"[red]{e}[/red]")
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     console.print(
         f"opened {sliced[-1].name} in Bambu Studio; use Print plate to send via cloud"
@@ -282,6 +313,27 @@ def profiles_search(kind: str, text: str) -> None:
 # --- printer ----------------------------------------------------------------
 
 
+def _ams_module():
+    from bambi import ams  # imports bambulabs_api; keep it off the startup path
+
+    return ams
+
+
+def _live_trays() -> list:
+    from bambi import printer
+
+    try:
+        with printer.connect() as p:
+            return printer.trays(p)
+    except (printer.PrinterConfigError, TimeoutError) as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+
+
+def _slot(slot: int) -> str:
+    return "external spool" if slot < 0 else f"AMS slot {slot}"
+
+
 @printer_app.command("status")
 def printer_status() -> None:
     """Read-only status snapshot from the printer."""
@@ -291,15 +343,76 @@ def printer_status() -> None:
         with printer.connect() as p:
             st = printer.status(p)
     except (printer.PrinterConfigError, TimeoutError) as e:
-        console.print(f"[red]{e}[/red]")
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     ams = st.pop("ams")
     for k, v in st.items():
         console.print(f"[bold]{k}[/bold]: {v}")
     for t in ams:
-        console.print(
-            f"  AMS slot {t['slot']}: {t['type'] or 'empty'} #{t['color'] or ''}"
+        console.print(f"  {_slot(t.slot)}: {t.label} [{t.color}]■[/] {t.color}")
+
+
+@printer_app.command("ams")
+def printer_ams(
+    ref: Annotated[
+        str | None,
+        typer.Argument(help="Session to write filaments into (with --write)."),
+    ] = None,
+    write: Annotated[
+        bool, typer.Option(help="Write the trays as filaments in session.toml.")
+    ] = False,
+    slots: Annotated[
+        str | None,
+        typer.Option(
+            help="Comma-separated slots to use, in filament order (e.g. 2,0)."
+        ),
+    ] = None,
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Replace existing filaments without asking."),
+    ] = False,
+) -> None:
+    """Show what's loaded in the AMS; with --write, turn it into session filaments."""
+    ams = _ams_module()
+    if write and not ref:
+        console.print("[red]--write needs a session[/red]")
+        raise typer.Exit(1)
+    s = _session(ref) if ref else None
+    trays = _live_trays()
+    table = Table("slot", "material", "type", "colour", "id", "profile")
+    for t in trays:
+        local = profiles.local_filament(t.filament_id) if t.filament_id else None
+        table.add_row(
+            _slot(t.slot),
+            t.sub_brand or "-",
+            t.type,
+            f"[{t.color}]■[/] {t.color}",
+            t.filament_id or "-",
+            local or ("(new)" if t.filament_id else "unknown: set by hand"),
         )
+    console.print(table if trays else "[yellow]no filament loaded[/yellow]")
+    if not write or s is None:
+        return
+    try:
+        chosen = [int(x) for x in slots.split(",")] if slots else None
+        filaments = ams.filaments_from(trays, chosen)
+    except (LookupError, ValueError) as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    if s.config.get("filaments") and not yes:
+        typer.confirm(f"Replace [[filaments]] in {s.name}/session.toml?", abort=True)
+    by_slot = {t.slot: t for t in trays}
+    notes = [
+        f"filament {n}: {by_slot[f.ams_slot].label} ({by_slot[f.ams_slot].filament_id})"
+        for n, f in enumerate(filaments, start=1)
+    ]
+    s.write_filaments(filaments, notes)
+    for n, f in enumerate(filaments, start=1):
+        console.print(f"  filament {n}: {f.profile} {f.color} <- {_slot(f.ams_slot)}")
+    console.print(
+        f"[green]wrote[/green] {len(filaments)} filament(s) to {s.name}/session.toml; "
+        "map objects to them in \\[objects]"
+    )
 
 
 @printer_app.command("send")
@@ -312,6 +425,9 @@ def printer_send(
     yes: Annotated[
         bool, typer.Option("--yes", "-y", help="Skip the start confirmation.")
     ] = False,
+    force: Annotated[
+        bool, typer.Option(help="Send even if the AMS trays don't match.")
+    ] = False,
 ) -> None:
     """Upload the session's sliced .gcode.3mf, optionally starting the print."""
     from bambi import printer
@@ -322,19 +438,41 @@ def printer_send(
         console.print("[red]nothing sliced; run `bambi slice` first[/red]")
         raise typer.Exit(1)
     file = sliced[-1]
-    slot = (
-        ams_slot
-        if ams_slot is not None
-        else s.config.get("print", {}).get("ams_slot", 0)
-    )
-    if start and not yes:
-        where = "external spool" if slot < 0 else f"AMS slot {slot}"
-        typer.confirm(f"Start printing {file.name} from {where}?", abort=True)
+    filaments = s.filaments()
+    if ams_slot is not None:
+        if len(filaments) > 1:
+            console.print(
+                "[red]--ams-slot is single-filament only; "
+                "set ams_slot per \\[\\[filaments]] in session.toml[/red]"
+            )
+            raise typer.Exit(1)
+        filaments[0].ams_slot = ams_slot
+    mapping = [f.ams_slot for f in filaments]
+    if len(mapping) > 1 and min(mapping) < 0:
+        console.print(
+            "[red]multi-color prints need every filament on an AMS slot[/red]"
+        )
+        raise typer.Exit(1)
+    ams = _ams_module()
     try:
         with printer.connect() as p:
-            printer.send(p, file, start=start, ams_slot=slot)
+            errors, warnings = ams.check(filaments, printer.trays(p))
+            for w in warnings:
+                console.print(f"[yellow]{escape(w)}[/yellow]")
+            for e in errors:
+                console.print(f"[red]{escape(str(e))}[/red]")
+            if errors and not force:
+                console.print("[red]fix the trays or pass --force[/red]")
+                raise typer.Exit(1)
+            if start and not yes:
+                where = "; ".join(
+                    f"{f.profile or '?'} {f.color or ''} from {_slot(f.ams_slot)}"
+                    for f in filaments
+                )
+                typer.confirm(f"Start printing {file.name}: {where}?", abort=True)
+            printer.send(p, file, start=start, ams_mapping=mapping)
     except (printer.PrinterConfigError, TimeoutError, RuntimeError) as e:
-        console.print(f"[red]{e}[/red]")
+        console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     console.print(
         f"[green]uploaded[/green] {file.name}" + (" and started" if start else "")

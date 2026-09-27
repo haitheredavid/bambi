@@ -11,4 +11,22 @@ plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plat
 # arrange = true              # let Bambu Studio auto-arrange on the plate
 
 [print]
-ams_slot = 0                  # AMS tray (0-3), or -1 for external spool
+ams_slot = 0                  # AMS tray (0-15), or -1 for external spool
+
+# --- Multi-color (AMS) ---------------------------------------------------------
+# One filament per Blender object: split multi-color parts into separate objects.
+# Listing [[filaments]] replaces [slice].filament and [print].ams_slot.
+# `bambi printer ams <session> --write` fills this from what's loaded in the AMS.
+# Entries with only ams_slot get profile/colour from the AMS via `bambi slice --ams`.
+# [[filaments]]               # filament 1
+# profile = "pla_basic"       # profiles/filament/<name>.json
+# color = "#FFFFFF"           # preview colour in Bambu Studio (optional)
+# ams_slot = 0                # AMS tray 0-15 (default: filament number - 1)
+#
+# [[filaments]]               # filament 2
+# profile = "pla_basic"
+# color = "#000000"
+# ams_slot = 1
+#
+# [objects]                   # exported STL name (no .stl) -> filament number; unlisted = 1
+# Logo = 2

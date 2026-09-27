@@ -3,7 +3,7 @@
 import json
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from bambi import profiles
@@ -19,8 +19,21 @@ PLATES = (
 )
 
 
+# The AMS holds up to 4 units x 4 trays.
+MAX_FILAMENTS = 16
+
+
 class SliceError(RuntimeError):
     pass
+
+
+@dataclass
+class Filament:
+    profile: str | None = (
+        "pla_basic"  # profiles/filament/<profile>.json; None = from AMS
+    )
+    color: str | None = None  # "#RRGGBB" preview colour; None keeps the profile's
+    ams_slot: int = 0  # AMS tray 0-15 for LAN send, -1 = external spool
 
 
 @dataclass
@@ -29,7 +42,9 @@ class SliceJob:
     output: Path  # .gcode.3mf
     machine: str = "p1s_0.4"
     process: str = "0.20mm_standard"
-    filament: str = "pla_basic"
+    filaments: list[Filament] = field(default_factory=lambda: [Filament()])
+    # 1-based filament number per entry in `models`; None puts everything on filament 1.
+    object_filaments: list[int] | None = None
     orient: bool = True
     arrange: bool = True
     plate: str = "Textured PEI Plate"
@@ -39,6 +54,31 @@ class SliceJob:
             raise ValueError(
                 f"unknown plate {self.plate!r}; choose one of: {', '.join(PLATES)}"
             )
+        if not 1 <= len(self.filaments) <= MAX_FILAMENTS:
+            raise ValueError(f"need 1-{MAX_FILAMENTS} filaments")
+        if unset := [n for n, f in enumerate(self.filaments, start=1) if not f.profile]:
+            raise ValueError(
+                f"filament(s) {unset} have no profile; slice with --ams or run "
+                "`bambi printer ams <session> --write`"
+            )
+        ids = self.object_filaments
+        if ids is not None:
+            if len(ids) != len(self.models):
+                raise ValueError(
+                    f"{len(ids)} filament ids for {len(self.models)} models"
+                )
+            if bad := [i for i in ids if not 1 <= i <= len(self.filaments)]:
+                raise ValueError(
+                    f"filament ids {bad} out of range 1-{len(self.filaments)}"
+                )
+
+    @property
+    def multicolor(self) -> bool:
+        return len(self.filaments) > 1
+
+    @property
+    def filament_names(self) -> str:
+        return " + ".join(f.profile or "?" for f in self.filaments)
 
     def process_config(self) -> dict:
         """The process profile with the build plate applied (the CLI reads curr_bed_type from it)."""
@@ -46,27 +86,80 @@ class SliceJob:
         data["curr_bed_type"] = self.plate
         return data
 
-    def command(self, process_file: Path, bin_path: Path | None = None) -> list[str]:
+    def filament_configs(self) -> list[dict]:
+        """Each filament profile with its preview colour applied."""
+        configs = []
+        for f in self.filaments:
+            data = json.loads(profiles.path_for("filament", f.profile).read_text())
+            if f.color:
+                data["filament_colour"] = [f.color]
+            configs.append(data)
+        return configs
+
+    def assemble_list(self) -> dict:
+        """Multi-colour input for --load-assemble-list: one plate, each model on its filament.
+
+        Bambu Studio 2.x ignores --load-filament-ids for plain model inputs, so multi-colour
+        jobs load models this way instead. The CLI can't combine it with --orient/--arrange;
+        need_arrange covers arranging, and models keep their Blender orientation.
+        """
+        ids = self.object_filaments or [1] * len(self.models)
+        return {
+            "plates": [
+                {
+                    "plate_name": "",
+                    "need_arrange": self.arrange,
+                    "objects": [
+                        {"path": str(m), "count": 1, "filaments": [i]}
+                        for m, i in zip(self.models, ids)
+                    ],
+                }
+            ]
+        }
+
+    def command(
+        self,
+        process_file: Path,
+        filament_files: list[Path] | None = None,
+        assemble_file: Path | None = None,
+        bin_path: Path | None = None,
+    ) -> list[str]:
         machine = profiles.path_for("machine", self.machine)
         process = process_file
-        filament = profiles.path_for("filament", self.filament)
+        filaments = filament_files or [
+            profiles.path_for("filament", f.profile) for f in self.filaments
+        ]
+        if self.multicolor:
+            if assemble_file is None:
+                raise ValueError("multi-colour jobs need an assemble list file")
+            inputs = [
+                "--load-assemble-list",
+                str(assemble_file),
+                "--allow-multicolor-oneplate",
+            ]
+            transforms = []
+        else:
+            inputs = list(map(str, self.models))
+            transforms = [
+                "--arrange",
+                "1" if self.arrange else "0",
+                "--orient",
+                "1" if self.orient else "0",
+            ]
         return [
             str(bin_path or get_settings().bambu_studio_bin),
             "--slice",
             "0",
-            "--arrange",
-            "1" if self.arrange else "0",
-            "--orient",
-            "1" if self.orient else "0",
+            *transforms,
             "--load-settings",
             f"{machine};{process}",
             "--load-filaments",
-            str(filament),
+            ";".join(map(str, filaments)),
             "--outputdir",
             str(self.output.parent),
             "--export-3mf",
             self.output.name,
-            *map(str, self.models),
+            *inputs,
         ]
 
 
@@ -75,6 +168,7 @@ class SliceResult:
     output: Path
     seconds: float
     grams: float
+    grams_per_filament: list[float]
     raw: dict
 
     @property
@@ -85,12 +179,16 @@ class SliceResult:
 
 def parse_result(output: Path, raw: dict) -> SliceResult:
     plates = raw.get("sliced_plates", [])
+    per: dict[int, float] = {}
+    for p in plates:
+        for n, f in enumerate(p.get("filaments", []), start=1):
+            fid = f.get("id", n)  # 1-based filament number
+            per[fid] = per.get(fid, 0.0) + f.get("total_used_g", 0.0)
     return SliceResult(
         output=output,
         seconds=sum(p.get("total_predication", 0.0) for p in plates),
-        grams=sum(
-            f.get("total_used_g", 0.0) for p in plates for f in p.get("filaments", [])
-        ),
+        grams=sum(per.values()),
+        grams_per_filament=[per.get(i, 0.0) for i in range(1, max(per, default=0) + 1)],
         raw=raw,
     )
 
@@ -106,8 +204,20 @@ def run(job: SliceJob) -> SliceResult:
     with tempfile.TemporaryDirectory() as tmp:
         process_file = Path(tmp) / f"{job.process}.json"
         process_file.write_text(json.dumps(job.process_config()))
+        filament_files = []
+        for n, data in enumerate(job.filament_configs(), start=1):
+            path = Path(tmp) / f"filament{n}.json"
+            path.write_text(json.dumps(data))
+            filament_files.append(path)
+        assemble_file = None
+        if job.multicolor:
+            assemble_file = Path(tmp) / "assemble.json"
+            assemble_file.write_text(json.dumps(job.assemble_list()))
         proc = subprocess.run(
-            job.command(process_file), capture_output=True, text=True, check=False
+            job.command(process_file, filament_files, assemble_file),
+            capture_output=True,
+            text=True,
+            check=False,
         )
     raw = json.loads(result_file.read_text()) if result_file.exists() else {}
     # The CLI also drops loose plate_N.gcode files next to the 3mf; the 3mf already contains them.

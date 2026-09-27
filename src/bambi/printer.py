@@ -6,6 +6,7 @@ from pathlib import Path
 
 import bambulabs_api as bl
 
+from bambi import ams
 from bambi.config import get_settings
 
 
@@ -44,20 +45,20 @@ def connect(timeout: float = 15.0):
         printer.mqtt_stop()
 
 
-def status(printer: bl.Printer) -> dict:
-    trays = []
+def trays(printer: bl.Printer) -> list[ams.Tray]:
+    """Loaded AMS trays plus the external spool, as the printer reports them now."""
     try:
-        for ams_id, ams in printer.ams_hub().ams_hub.items():
-            for tray_id, tray in ams.filament_trays.items():
-                trays.append(
-                    {
-                        "slot": int(ams_id) * 4 + int(tray_id),
-                        "type": tray.tray_type,
-                        "color": tray.tray_color,
-                    }
-                )
+        hub = printer.ams_hub()
     except (AttributeError, KeyError, TypeError, ValueError):
-        trays = []  # AMS absent or not reported yet
+        hub = bl.AMSHub()  # AMS absent or not reported yet
+    try:
+        external = printer.vt_tray()
+    except (AttributeError, KeyError, TypeError, ValueError):
+        external = None
+    return ams.trays_from(hub, external)
+
+
+def status(printer: bl.Printer) -> dict:
     return {
         "state": str(printer.get_state()),
         "stage": str(printer.get_current_state()),
@@ -67,21 +68,27 @@ def status(printer: bl.Printer) -> dict:
         "layer": f"{printer.current_layer_num()}/{printer.total_layer_num()}",
         "nozzle_c": printer.get_nozzle_temperature(),
         "bed_c": printer.get_bed_temperature(),
-        "ams": trays,
+        "ams": trays(printer),
     }
 
 
 def send(
-    printer: bl.Printer, file: Path, start: bool, ams_slot: int = 0, plate: int = 1
+    printer: bl.Printer,
+    file: Path,
+    start: bool,
+    ams_mapping: list[int] | None = None,
+    plate: int = 1,
 ) -> str:
+    """Upload, optionally start. ams_mapping[i] = AMS tray for filament i+1 (-1 = external)."""
+    mapping = ams_mapping or [0]
     with file.open("rb") as fh:
         result = printer.upload_file(fh, file.name)
     if "226" not in str(result):  # FTP "transfer complete"
         raise RuntimeError(f"upload failed: {result}")
     if start:
-        use_ams = ams_slot >= 0
+        use_ams = all(slot >= 0 for slot in mapping)
         ok = printer.start_print(
-            file.name, plate, use_ams=use_ams, ams_mapping=[ams_slot if use_ams else 0]
+            file.name, plate, use_ams=use_ams, ams_mapping=mapping if use_ams else [0]
         )
         if not ok:
             raise RuntimeError("printer rejected start command")

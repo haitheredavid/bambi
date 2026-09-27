@@ -92,6 +92,10 @@ studio session:
 status:
     {{bambi}} printer status
 
+# what's loaded in the AMS; `just ams <session> --write` fills [[filaments]]
+ams *args:
+    {{bambi}} printer ams {{args}}
+
 # upload the sliced file without starting
 upload session:
     {{bambi}} printer send {{session}}

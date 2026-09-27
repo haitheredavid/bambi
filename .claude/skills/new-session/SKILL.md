@@ -17,6 +17,7 @@ Work in two stages: **plan** (no files touched), then **build** once the plan is
 3. Fill in what's missing with **one** `AskUserQuestion` round. Only ask about what the request leaves open and what changes the design:
    - **Purpose and fit.** What does it attach to or hold? Get critical dimensions in mm, or ask the user to measure them.
    - **Material.** PLA Basic is the default. Use PETG HF for heat, outdoor use or flex.
+   - **Colours (AMS).** Single colour unless asked. For multi-colour, plan one Blender object per colour and fill `[[filaments]]` + `[objects]` in `session.toml`; each colour swap adds flush waste and time. Run `uv run bambi printer ams` (read-only) to see what's loaded, and `bambi printer ams <session> --write --slots ...` to fill `[[filaments]]` from it.
    - **Size and strength.** Load-bearing or cosmetic? Any size limit?
 4. Write the plan with these sections:
    - **Session name.** A short kebab-case slug; the folder becomes `sessions/YYYY-MM-DD-<slug>/`.

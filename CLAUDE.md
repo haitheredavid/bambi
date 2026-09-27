@@ -14,6 +14,7 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 - P1S build volume: 256 x 256 x 256 mm.
 - Build plate defaults to Textured PEI (`plate` in `session.toml` or `--plate`). Bambu rejects some filament/plate pairs, e.g. PETG on the Cool Plate.
 - Only visible mesh objects are exported. Hide helper/reference geometry.
+- Multi-colour (AMS) is per object: split a multi-colour part into separate objects, list `[[filaments]]` in `session.toml` and map exported STL names to filament numbers in `[objects]`. Multi-colour slices go through `--load-assemble-list` (Bambu ignores `--load-filament-ids`), so no auto-orient. `bambi printer ams <s> --write` fills `[[filaments]]` from what's loaded in the AMS (tray material codes resolve to Bambu Studio profiles, flattened into `profiles/filament/` on first use); `slice/build --ams` fills profile-less entries at slice time; `printer send` refuses when a tray's material doesn't match.
 
 ## Starting a new print
 Use the `/new-session <idea>` skill (`.claude/skills/new-session/`): plan first, then create the session, model it via MCP, and slice.
@@ -27,10 +28,11 @@ Use the `/new-session <idea>` skill (`.claude/skills/new-session/`): plan first,
 `just` wraps the common commands (`just` lists them: `just new/build/slice/status/print ...`). The full CLI:
 ```
 bambi new <name>            bambi ls
-bambi export <s>            bambi check <s>        bambi slice <s> [--process --filament]
+bambi export <s>            bambi check <s>        bambi slice <s> [--process --filament --ams]
 bambi build <s>             bambi studio <s>       bambi blender open|orient <s>
 bambi profiles sync|ls|search <kind> <text>
-bambi printer status        bambi printer send <s> [--start] [--ams-slot N] [-y]
+bambi printer status        bambi printer ams [<s> --write [--slots 2,0] [-y]]
+bambi printer send <s> [--start] [--ams-slot N (single colour)] [--force] [-y]
 ```
 
 ## Printing: cloud vs LAN
@@ -39,7 +41,7 @@ bambi printer status        bambi printer send <s> [--start] [--ams-slot N] [-y]
 
 ## Safety
 - `printer send --start` starts a physical print. Always confirm with the user before running it, even with `-y`.
-- `printer status` is read-only.
+- `printer status` and `printer ams` (without `--write`) are read-only.
 - `.env` holds the printer access code. Never commit it or print it.
 
 ## Dev

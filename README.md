@@ -22,3 +22,4 @@ just print phone-stand     # LAN: upload and start (asks first)
 ```
 `just` lists every recipe; each wraps `uv run bambi ...`, which you can call directly for anything not covered.
 Per-session slice settings (process, filament, build plate, AMS slot) live in `session.toml`.
+Multi-colour via the AMS: one Blender object per colour, then list `[[filaments]]` (profile, colour, AMS slot) and map objects in `[objects]`; see `sessions/_template/session.toml`. `bambi printer ams` shows what's loaded; `bambi printer ams <session> --write` writes it into `[[filaments]]` for you.

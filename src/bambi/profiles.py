@@ -5,6 +5,7 @@ name). The slicer CLI wants a single fully-resolved file per machine/process/fil
 """
 
 import json
+import re
 from pathlib import Path
 
 from bambi.config import get_settings
@@ -21,6 +22,8 @@ DEFAULTS: dict[str, tuple[str, str]] = {
 }
 
 DROP_KEYS = {"inherits", "include"}
+
+PRINTER = "Bambu Lab P1S 0.4 nozzle"
 
 
 class ProfileIndex:
@@ -53,6 +56,61 @@ class ProfileIndex:
             merged.update(self.flatten(kind, fragment))
         merged.update({k: v for k, v in own.items() if k not in DROP_KEYS})
         return merged
+
+    def find_filament(self, filament_id: str, printer: str = PRINTER) -> str | None:
+        """System filament profile for a Bambu material code (AMS tray_info_idx)."""
+        matches = []
+        for name in self.names("filament"):
+            try:
+                data = self.flatten("filament", name)
+            except KeyError:
+                continue  # broken inherits chain
+            if (
+                data.get("instantiation") == "true"
+                and data.get("filament_id") == filament_id
+                and printer in data.get("compatible_printers", [])
+            ):
+                matches.append(name)
+        # Prefer the printer-specific variant ("... @BBL P1S 0.4 nozzle").
+        matches.sort(key=lambda n: "P1S 0.4" not in n)
+        return matches[0] if matches else None
+
+
+def local_name(system_name: str) -> str:
+    """'Bambu PLA Matte @BBL P1S 0.4 nozzle' -> 'bambu_pla_matte'."""
+    return re.sub(r"[^a-z0-9]+", "_", system_name.split("@")[0].lower()).strip("_")
+
+
+def local_filament(filament_id: str, root: Path | None = None) -> str | None:
+    """Local profiles/filament/<name> already made for this material code."""
+    root = root or get_settings().profiles_dir
+    for path in sorted((root / "filament").glob("*.json")):
+        try:
+            if json.loads(path.read_text()).get("filament_id") == filament_id:
+                return path.stem
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def ensure_filament(filament_id: str, index: "ProfileIndex | None" = None) -> str:
+    """Local filament profile name for a material code, flattening it on first use."""
+    if name := local_filament(filament_id):
+        return name
+    settings = get_settings()
+    index = index or ProfileIndex(settings.bambu_system_profiles)
+    system_name = index.find_filament(filament_id)
+    if system_name is None:
+        raise LookupError(
+            f"no Bambu Studio filament profile with id {filament_id} for {PRINTER}"
+        )
+    name = local_name(system_name)
+    data = index.flatten("filament", system_name)
+    data["instantiation"] = "true"
+    out = settings.profiles_dir / "filament" / f"{name}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return name
 
 
 def sync(dest: Path | None = None, overwrite: bool = False) -> list[Path]:
