@@ -15,6 +15,9 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 - Build plate defaults to Textured PEI (`plate` in `session.toml` or `--plate`). Bambu rejects some filament/plate pairs, e.g. PETG on the Cool Plate.
 - Only visible mesh objects are exported. Hide helper/reference geometry.
 
+## Starting a new print
+Use the `/new-session <idea>` skill (`.claude/skills/new-session/`): plan first, then create the session, model it via MCP, and slice.
+
 ## Working live through blender-mcp
 1. `uv run bambi blender open <session>` opens the session's `model.blend`; the add-on's MCP bridge auto-starts on port 9876.
 2. Use the `mcp__blender__*` tools (call `get_scene_info` first). Save with `bpy.ops.wm.save_mainfile()` so the headless pipeline sees the changes.
