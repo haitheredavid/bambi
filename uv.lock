@@ -27,6 +27,7 @@ source = { editable = "." }
 dependencies = [
     { name = "bambulabs-api" },
     { name = "numpy" },
+    { name = "pillow" },
     { name = "pydantic-settings" },
     { name = "rich" },
     { name = "trimesh" },
@@ -43,6 +44,7 @@ dev = [
 requires-dist = [
     { name = "bambulabs-api", specifier = ">=2.6.6" },
     { name = "numpy", specifier = ">=2.5.3" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "trimesh", specifier = ">=5.1.0" },

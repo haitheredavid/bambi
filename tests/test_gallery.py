@@ -1,8 +1,10 @@
 import zipfile
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from bambi import gallery, session
 
@@ -41,26 +43,46 @@ def test_backfill_only_when_missing(sessions_dir):
     assert gallery.backfill(s) is None  # already there
 
 
-def test_gallery_prefers_render_and_skips_imageless(sessions_dir):
+def png(color: tuple, alpha: int = 255) -> bytes:
+    buf = BytesIO()
+    Image.new("RGBA", (64, 32), (*color, alpha)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def test_gallery_links_tiles_newest_first(sessions_dir):
     root = sessions_dir.parent
     a = session.create("cube", base=sessions_dir, today=date(2026, 9, 26))
     b = session.create("stand", base=sessions_dir, today=date(2026, 9, 27))
     c = session.create("nothing", base=sessions_dir, today=date(2026, 9, 27))
-    (a.path / gallery.THUMB).write_bytes(PNG)
-    (b.path / gallery.THUMB).write_bytes(PNG)
-    (b.path / gallery.RENDER).write_bytes(PNG)
+    (a.path / gallery.THUMB).write_bytes(png((0, 200, 0), alpha=0))
+    (b.path / gallery.THUMB).write_bytes(png((0, 200, 0)))
     (b.exports / "Stand.stl").write_bytes(b"solid")
 
-    md = gallery.gallery_markdown(session.list_all(sessions_dir), root)
+    tiles = root / "docs" / "gallery"
+    md = gallery.gallery_markdown(session.list_all(sessions_dir), root, tiles)
     assert c.name not in md
-    assert f"sessions/{b.name}/render.png" in md
-    assert f"sessions/{b.name}/thumb.png" not in md
     assert f'<a href="sessions/{b.name}/exports/Stand.stl">' in md
-    assert md.index(b.name) < md.index(a.name)  # newest first
+    assert f'<a href="sessions/{a.name}/notes.md">' in md  # no STL: notes instead
+    assert f'src="docs/gallery/{b.name}.png"' in md
+    assert md.index(b.name) < md.index(a.name)
+
+
+def test_write_tiles_prefers_render_and_skips_unchanged(sessions_dir, tmp_path):
+    s = session.create("stand", base=sessions_dir, today=date(2026, 9, 27))
+    (s.path / gallery.THUMB).write_bytes(png((0, 200, 0), alpha=0))
+    tiles = tmp_path / "tiles"
+    [tile] = gallery.write_tiles([s], tiles)
+    thumb_tile = tile.read_bytes()
+    assert Image.open(tile).size == (gallery.TILE, gallery.TILE)
+    assert gallery.write_tiles([s], tiles) == []  # same input, no rewrite
+    (s.path / gallery.RENDER).write_bytes(png((200, 0, 0)))
+    assert gallery.write_tiles([s], tiles) == [tile]
+    assert tile.read_bytes() != thumb_tile
 
 
 def test_gallery_empty(sessions_dir):
-    assert "nothing" in gallery.gallery_markdown([], sessions_dir.parent)
+    root = sessions_dir.parent
+    assert "nothing" in gallery.gallery_markdown([], root, root / "tiles")
 
 
 def test_update_readme(tmp_path):

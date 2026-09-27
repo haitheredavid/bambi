@@ -254,10 +254,14 @@ def studio(ref: SessionArg) -> None:
 # --- gallery ----------------------------------------------------------------
 
 README = ROOT / "README.md"
+TILES = ROOT / "docs" / "gallery"
 
 
 def _update_gallery() -> None:
-    md = gallery.gallery_markdown(session.list_all(), ROOT)
+    sessions = session.list_all()
+    for tile in gallery.write_tiles(sessions, TILES):
+        console.print(f"[dim]tile -> {tile.relative_to(ROOT)}[/dim]")
+    md = gallery.gallery_markdown(sessions, ROOT, TILES)
     try:
         if gallery.update_readme(README, md):
             console.print("[dim]README gallery updated[/dim]")

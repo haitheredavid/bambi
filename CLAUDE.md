@@ -6,7 +6,7 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 - `src/bambi/`: the `bambi` CLI (typer). Host-side Python 3.13.
 - `blender_scripts/`: run **inside** Blender (`blender -b file.blend -P script.py -- --result out.json ...`). bpy/bmesh only; never import `bambi` here. Each script takes `--result` and writes JSON there.
 - `profiles/{machine,process,filament}/*.json`: flattened Bambu Studio profiles. Regenerate with `bambi profiles sync --overwrite`; tune by editing the JSON (the slicer CLI needs fully resolved files, so no `inherits`).
-- `sessions/YYYY-MM-DD-<name>/`: one per modeling project. `model.blend` (source), `session.toml` (slice/print settings), `notes.md`, `exports/` (STL), `out/` (sliced `.gcode.3mf`, gitignored). `thumb.png` (plate preview from the sliced 3mf, written on every slice) and `render.png` (`bambi render`) are committed and feed the README gallery (between `<!-- gallery:start/end -->`).
+- `sessions/YYYY-MM-DD-<name>/`: one per modeling project. `model.blend` (source), `session.toml` (slice/print settings), `notes.md`, `exports/` (STL), `out/` (sliced `.gcode.3mf`, gitignored). `thumb.png` (plate preview from the sliced 3mf, written on every slice) and `render.png` (`bambi render`) are committed; each slice/render turns the best one into a uniform card in `docs/gallery/<session>.png` and rewrites the README gallery grid (between `<!-- gallery:start/end -->`).
 
 ## Conventions
 - **Units: 1 Blender unit = 1 mm.** `bambi new` creates `model.blend` with unit scale 0.001 / millimetres. Model at real size in mm; the STL exporter writes raw units.

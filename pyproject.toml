@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "bambulabs-api>=2.6.6",
     "numpy>=2.5.3",
+    "pillow>=12.3.0",
     "pydantic-settings>=2.15.0",
     "rich>=15.0.0",
     "trimesh>=5.1.0",
