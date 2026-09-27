@@ -73,3 +73,8 @@ def test_flatten_resolves_inherits_and_include(tmp_path):
         (tmp_path / "machine" / f"{stem}.json").write_text(json.dumps(data))
     flat = profiles.ProfileIndex(tmp_path).flatten("machine", "leaf")
     assert flat == {"name": "leaf", "a": 1, "b": 2, "c": 3}
+
+
+def test_studio_app_from_bin():
+    bin_path = Path("/Applications/BambuStudio.app/Contents/MacOS/BambuStudio")
+    assert slicer.studio_app(bin_path) == Path("/Applications/BambuStudio.app")

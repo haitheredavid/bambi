@@ -1,6 +1,6 @@
 # bambi
 
-Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a Bambu Lab P1S (LAN mode).
+Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a Bambu Lab P1S (LAN mode, or Bambu Cloud via the Studio GUI).
 
 ## Layout
 - `src/bambi/`: the `bambi` CLI (typer). Host-side Python 3.13.
@@ -28,10 +28,14 @@ Use the `/new-session <idea>` skill (`.claude/skills/new-session/`): plan first,
 ```
 bambi new <name>            bambi ls
 bambi export <s>            bambi check <s>        bambi slice <s> [--process --filament]
-bambi build <s>             bambi blender open|orient <s>
+bambi build <s>             bambi studio <s>       bambi blender open|orient <s>
 bambi profiles sync|ls|search <kind> <text>
 bambi printer status        bambi printer send <s> [--start] [--ams-slot N] [-y]
 ```
+
+## Printing: cloud vs LAN
+- **Cloud (hybrid):** `bambi studio <s>` / `just studio <s>` opens the sliced `.gcode.3mf` in Bambu Studio; the user sends it with Print plate via Bambu Cloud. No `.env` needed.
+- **LAN:** `bambi printer status|send` talk to the printer directly (MQTT/FTPS). Needs `.env`, and on newer firmware LAN-only mode + Developer Mode for `send --start`.
 
 ## Safety
 - `printer send --start` starts a physical print. Always confirm with the user before running it, even with `-y`.

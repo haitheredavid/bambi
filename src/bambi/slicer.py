@@ -130,3 +130,19 @@ def run(job: SliceJob) -> SliceResult:
         msg = raw.get("error_string") or f"exit {proc.returncode}"
         raise SliceError(f"slicing failed: {msg}\n{tail}")
     return parse_result(job.output, raw)
+
+
+def studio_app(bin_path: Path | None = None) -> Path:
+    # .../BambuStudio.app/Contents/MacOS/BambuStudio -> .../BambuStudio.app
+    return (bin_path or get_settings().bambu_studio_bin).parents[2]
+
+
+def open_in_studio(file: Path) -> None:
+    """Open a sliced .gcode.3mf in the Bambu Studio GUI (reuses a running instance).
+
+    From there Print plate sends it via Bambu Cloud, so this works outside LAN mode.
+    """
+    app = studio_app()
+    if not app.exists():
+        raise FileNotFoundError(f"Bambu Studio not found at {app}")
+    subprocess.run(["open", "-a", str(app), str(file)], check=True)

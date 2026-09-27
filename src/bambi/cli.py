@@ -1,5 +1,6 @@
 """`bambi` command line."""
 
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -10,7 +11,10 @@ from rich.table import Table
 from bambi import blender, mesh, profiles, session, slicer
 
 app = typer.Typer(no_args_is_help=True, help="Blender -> Bambu Studio -> P1S sandbox.")
-printer_app = typer.Typer(no_args_is_help=True, help="Talk to the P1S over LAN.")
+printer_app = typer.Typer(
+    no_args_is_help=True,
+    help="Talk to the P1S over LAN (use `bambi studio` for cloud).",
+)
 blender_app = typer.Typer(no_args_is_help=True, help="Blender helpers.")
 profiles_app = typer.Typer(no_args_is_help=True, help="Slicer profiles.")
 app.add_typer(printer_app, name="printer")
@@ -192,6 +196,24 @@ def build(ref: SessionArg) -> None:
     except typer.Exit:
         console.print("[yellow]checks reported problems; slicing anyway[/yellow]")
     slice_cmd(ref)
+
+
+@app.command()
+def studio(ref: SessionArg) -> None:
+    """Open the session's sliced .gcode.3mf in Bambu Studio to send via Bambu Cloud."""
+    s = _session(ref)
+    sliced = s.sliced_files()
+    if not sliced:
+        console.print("[red]nothing sliced; run `bambi slice` first[/red]")
+        raise typer.Exit(1)
+    try:
+        slicer.open_in_studio(sliced[-1])
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    console.print(
+        f"opened {sliced[-1].name} in Bambu Studio; use Print plate to send via cloud"
+    )
 
 
 # --- blender ----------------------------------------------------------------

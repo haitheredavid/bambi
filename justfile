@@ -84,7 +84,11 @@ anim session scene="Assembly Anim":
 
 # --- printer -----------------------------------------------------------------
 
-# printer status (read-only)
+# open the sliced file in Bambu Studio to send via Bambu Cloud
+studio session:
+    {{bambi}} studio {{session}}
+
+# printer status (read-only, LAN)
 status:
     {{bambi}} printer status
 

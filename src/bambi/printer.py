@@ -28,11 +28,17 @@ def connect(timeout: float = 15.0):
         while not printer.mqtt_client_ready():
             if time.monotonic() > deadline:
                 raise TimeoutError(
-                    f"no MQTT response from {s.bambu_ip} after {timeout:.0f}s"
+                    f"no MQTT response from {s.bambu_ip} after {timeout:.0f}s "
+                    "(check BAMBU_SERIAL and BAMBU_ACCESS_CODE)"
                 )
             time.sleep(0.25)
-        # First full status push can lag the connection slightly.
-        time.sleep(1.0)
+        # "ready" trips on the echo of our own request, and the printer ignores the
+        # pushall sent during the handshake. Ask again and wait for a full report.
+        printer.mqtt_client.pushall()
+        while "gcode_state" not in printer.mqtt_client._data.get("print", {}):
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"no full status from {s.bambu_ip}")
+            time.sleep(0.25)
         yield printer
     finally:
         printer.mqtt_stop()
