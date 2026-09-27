@@ -17,5 +17,6 @@ sessions/*/out/*
 !sessions/*/out/.gitkeep
 .DS_Store
 
+**/worktrees/
 # third-party reference images (not ours to publish)
 sessions/refs/
