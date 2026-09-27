@@ -50,6 +50,7 @@ Work in two stages: **plan** (no files touched), then **build** once the plan is
 4. Run `just build <slug>`: export, then check, then slice.
    - If the checks fail (non-manifold, below the bed, wrong scale), fix the model in Blender and run it again.
    - If slicing fails, read the error; for example, a filament/plate mismatch means changing `--plate` or `--filament`.
+   - A successful slice writes `thumb.png` and refreshes the README gallery. Optionally run `just render <slug>` for a studio shot to use instead.
 5. Report back: a screenshot, dimensions, the check results, print time and grams from the slice, and the output file.
 6. Add a line under Iterations in `notes.md` covering what was built and any compromises.
 7. Stop there. Offer `just upload <slug>` or `just print <slug>`, but **never start a print without the user's explicit go-ahead in this conversation**.

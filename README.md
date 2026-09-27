@@ -14,6 +14,38 @@ So, here's what this fucking thing does right now:
 - **Vibe modeling.** To maximize the vibing, models get built with Blender's python API over an MCP connection. At some point, when the nurbs start calling, the rhino api comes in.
 - **Modeling sessions.** Each project gets its own folder named with the date and project name. It holds everything for whatever the fuck got made in that session: the `.blend`, exported STLs, slice settings, notes and the sliced output.
 
+## prints
+
+Every slice drops the plate preview in `sessions/<session>/thumb.png`, and `just render <session>` swaps in a studio render. Click one to spin its STL in GitHub's 3D viewer.
+
+<!-- gallery:start -->
+<table>
+<tr>
+<td align="center" valign="top" width="33%">
+<a href="sessions/2026-09-27-plate-scraper/exports/Scraper.stl"><img src="sessions/2026-09-27-plate-scraper/thumb.png" width="240" alt="2026-09-27-plate-scraper"></a>
+<br><b><a href="sessions/2026-09-27-plate-scraper/notes.md">2026-09-27-plate-scraper</a></b>
+<br><sub>Simple PLA scraper (flat wedge + handle) for lifting stray filament off the textured PEI plate; end-to-end smoke test of the bambi stack.</sub>
+</td>
+<td align="center" valign="top" width="33%">
+<a href="sessions/2026-09-26-door-sampler/exports/DoorSampler.stl"><img src="sessions/2026-09-26-door-sampler/render.png" width="240" alt="2026-09-26-door-sampler"></a>
+<br><b><a href="sessions/2026-09-26-door-sampler/notes.md">2026-09-26-door-sampler</a></b>
+<br><sub>Desk display of five world door styles (shoji, Dutch, Moorish, Romanesque, Gothic), each in its own frame on a shared base; first end-to-end pipeline test</sub>
+</td>
+<td align="center" valign="top" width="33%">
+<a href="sessions/2026-09-26-colossus-tmg/exports/Base.stl"><img src="sessions/2026-09-26-colossus-tmg/render.png" width="240" alt="2026-09-26-colossus-tmg"></a>
+<br><b><a href="sessions/2026-09-26-colossus-tmg/notes.md">2026-09-26-colossus-tmg</a></b>
+<br><sub>Prototype Protoss Colossus for StarCraft TMG: ~170 mm tall, 120 mm beveled base with terrain and 5x3 mm magnet slot, multi-part kit (base, hull, 4 legs) joined with pegs and glue.</sub>
+</td>
+</tr>
+<tr>
+<td align="center" valign="top" width="33%">
+<a href="sessions/2026-09-26-calib-cube/exports/calib_cube.stl"><img src="sessions/2026-09-26-calib-cube/thumb.png" width="240" alt="2026-09-26-calib-cube"></a>
+<br><b><a href="sessions/2026-09-26-calib-cube/notes.md">2026-09-26-calib-cube</a></b>
+</td>
+</tr>
+</table>
+<!-- gallery:end -->
+
 ## how
 
 ### setup

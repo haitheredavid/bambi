@@ -9,7 +9,8 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from bambi import blender, mesh, profiles, session, slicer
+from bambi import blender, gallery, mesh, profiles, session, slicer
+from bambi.config import ROOT
 
 app = typer.Typer(no_args_is_help=True, help="Blender -> Bambu Studio -> P1S sandbox.")
 printer_app = typer.Typer(
@@ -211,6 +212,9 @@ def slice_cmd(
                 f"  filament {n}: {f.profile} {f.color or ''} "
                 f"-> AMS slot {f.ams_slot}, {grams:.1f} g: {', '.join(used) or '-'}"
             )
+    if gallery.extract_thumb(res.output, s.path / gallery.THUMB):
+        console.print(f"[dim]thumb -> {s.path.relative_to(ROOT) / gallery.THUMB}[/dim]")
+    _update_gallery()
 
 
 @app.command()
@@ -245,6 +249,76 @@ def studio(ref: SessionArg) -> None:
     console.print(
         f"opened {sliced[-1].name} in Bambu Studio; use Print plate to send via cloud"
     )
+
+
+# --- gallery ----------------------------------------------------------------
+
+README = ROOT / "README.md"
+
+
+def _update_gallery() -> None:
+    md = gallery.gallery_markdown(session.list_all(), ROOT)
+    try:
+        if gallery.update_readme(README, md):
+            console.print("[dim]README gallery updated[/dim]")
+    except LookupError as e:
+        console.print(f"[yellow]{escape(str(e))}[/yellow]")
+
+
+@app.command("gallery")
+def gallery_cmd() -> None:
+    """Backfill thumb.png from sliced 3mfs and rewrite the README gallery."""
+    for s in session.list_all():
+        if thumb := gallery.backfill(s):
+            console.print(f"thumb -> {thumb.relative_to(ROOT)}")
+    _update_gallery()
+
+
+def _render_colors(s: session.Session) -> list[str]:
+    """--color args for render_thumb.py: STL stem -> filament colour, '*' for unlisted."""
+    cfg = s.config
+    entries = cfg.get("filaments") or []
+    colors = [e.get("color") for e in entries]
+    args = []
+    if colors and colors[0]:
+        args += ["--color", f"*={colors[0]}"]
+    for stem, n in cfg.get("objects", {}).items():
+        if 0 < int(n) <= len(colors) and colors[int(n) - 1]:
+            args += ["--color", f"{stem}={colors[int(n) - 1]}"]
+    return args
+
+
+@app.command()
+def render(
+    ref: SessionArg,
+    scene: Annotated[
+        str | None, typer.Option(help="Scene to render (default: the saved one).")
+    ] = None,
+) -> None:
+    """Studio render of model.blend's visible meshes to render.png (headless)."""
+    s = _session(ref)
+    if not s.blend.exists():
+        console.print("[red]no model.blend[/red]")
+        raise typer.Exit(1)
+    out = s.path / gallery.RENDER
+    try:
+        res = blender.run_script(
+            "render_thumb.py",
+            blend=s.blend,
+            args=[
+                "--out",
+                str(out),
+                *(["--scene", scene] if scene else []),
+                *_render_colors(s),
+            ],
+        )
+    except blender.BlenderError as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    console.print(
+        f"[green]rendered[/green] {out.relative_to(ROOT)} ({res['objects']} objects)"
+    )
+    _update_gallery()
 
 
 # --- blender ----------------------------------------------------------------

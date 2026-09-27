@@ -68,6 +68,14 @@ slice session *flags:
 build session:
     {{bambi}} build {{session}}
 
+# studio render of model.blend -> sessions/<s>/render.png, shown in the README gallery
+render session *flags:
+    {{bambi}} render "$@"
+
+# backfill thumb.png from sliced files and rewrite the README gallery
+gallery:
+    {{bambi}} gallery
+
 # render a scene's animation to out/<session>-assembly.mp4 + .gif (save in Blender first)
 anim session scene="Assembly Anim":
     #!/usr/bin/env bash
