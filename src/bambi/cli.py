@@ -506,6 +506,9 @@ def printer_send(
     force: Annotated[
         bool, typer.Option(help="Send even if the AMS trays don't match.")
     ] = False,
+    plate: Annotated[
+        int, typer.Option(help="Plate to print, for slices with several plates.")
+    ] = 1,
 ) -> None:
     """Upload the session's sliced .gcode.3mf, optionally starting the print."""
     from bambi import printer
@@ -516,6 +519,13 @@ def printer_send(
         console.print("[red]nothing sliced; run `bambi slice` first[/red]")
         raise typer.Exit(1)
     file = sliced[-1]
+    plates = printer.plates(file)
+    if plate not in plates:
+        console.print(
+            f"[red]{file.name} has no plate {plate} "
+            f"(plates: {', '.join(map(str, plates))})[/red]"
+        )
+        raise typer.Exit(1)
     filaments = s.filaments()
     if ams_slot is not None:
         if len(filaments) > 1:
@@ -547,11 +557,15 @@ def printer_send(
                     f"{f.profile or '?'} {f.color or ''} from {_slot(f.ams_slot)}"
                     for f in filaments
                 )
-                typer.confirm(f"Start printing {file.name}: {where}?", abort=True)
-            printer.send(p, file, start=start, ams_mapping=mapping)
+                of = f" plate {plate}/{len(plates)}" if len(plates) > 1 else ""
+                typer.confirm(f"Start printing {file.name}{of}: {where}?", abort=True)
+            printer.send(p, file, start=start, ams_mapping=mapping, plate=plate)
     except (printer.PrinterConfigError, TimeoutError, RuntimeError) as e:
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     console.print(
-        f"[green]uploaded[/green] {file.name}" + (" and started" if start else "")
+        f"[green]uploaded[/green] {file.name}"
+        + (f" and started plate {plate}" if start else "")
     )
+    if start and len(plates) > 1 and plate < len(plates):
+        console.print(f"next: bambi printer send {s.name} --start --plate {plate + 1}")

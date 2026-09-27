@@ -33,7 +33,7 @@ bambi build <s>             bambi studio <s>       bambi blender open|orient <s>
 bambi render <s> [--scene]  bambi gallery
 bambi profiles sync|ls|search <kind> <text>
 bambi printer status        bambi printer ams [<s> --write [--slots 2,0] [-y]]
-bambi printer send <s> [--start] [--ams-slot N (single colour)] [--force] [-y]
+bambi printer send <s> [--start] [--plate N] [--ams-slot N (single colour)] [--force] [-y]
 ```
 
 ## Printing: cloud vs LAN
