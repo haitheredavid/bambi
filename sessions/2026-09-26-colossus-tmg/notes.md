@@ -40,3 +40,4 @@ Scale rationale: official TMG bases are 32 (Marine), 40 (Zealot), 50 (Sentry), 8
 - Not modelled: circuit engraving on the armour (below printable depth, so paint it) and smooth curved leg blades like the sculpt.
 
 ## Print results
+- 2026-09-27: plate 1 (v4, 0.12 mm) sent over LAN; start ignored (no Developer Mode), so it was started from the printer screen. The screen used the default filament mapping, tray 0 (blue PLA Silk, profile pla_basic) instead of `ams_slot = 3` (orange PLA Basic). Kept running in blue silk. Plate 2 (4 leg halves) still to print: remap filament 1 to the orange slot on the screen, or `bambi printer send colossus --start --plate 2` once Developer Mode is on.

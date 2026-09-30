@@ -30,3 +30,23 @@ ams_slot = 1                  # AMS tray (0-15), or -1 for external spool
 #
 # [objects]                   # exported STL name (no .stl) -> filament number; unlisted = 1
 # Logo = 2
+
+[[filaments]]                 # filament 1: PLA Silk (GFA05)
+profile = "bambu_pla_silk"
+color = "#0047BB"
+ams_slot = 0
+
+[[filaments]]                 # filament 2: PLA Basic (GFA00)
+profile = "pla_basic"
+color = "#00AE42"
+ams_slot = 1
+
+[[filaments]]                 # filament 3: Support for PLA (GFS02)
+profile = "bambu_support_for_pla"
+color = "#FFFFFF"
+ams_slot = 2
+
+[[filaments]]                 # filament 4: PLA Basic (GFA00)
+profile = "pla_basic"
+color = "#FF6A13"
+ams_slot = 3
