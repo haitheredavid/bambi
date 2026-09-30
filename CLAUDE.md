@@ -49,3 +49,5 @@ bambi printer send <s> [--start] [--plate N] [--ams-slot N (single colour)] [--f
 
 ## Dev
 `just ci` (ruff + pytest), `just fmt`
+
+Binaries (`*.blend`, `*.stl`, `*.png`, `*.3mf`) are in Git LFS (`.gitattributes`); fresh clones need `git lfs install`.
