@@ -1,0 +1,50 @@
+name = "cat-putty-knife"
+created = "2026-09-30"
+intent = "6\" (150 mm) PLA putty knife for spreading joint compound on medium wall patches; orange handle ends in a cat head with ears and inlaid blue eyes."
+
+[slice]
+machine = "p1s_0.4"           # profiles/machine/<name>.json
+process = "0.20mm_standard"   # profiles/process/<name>.json
+filament = "pla_basic"        # profiles/filament/<name>.json
+plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plate, Supertack Plate
+# orient = true               # let Bambu Studio auto-orient
+# arrange = true              # let Bambu Studio auto-arrange on the plate
+assemble = true               # multi-colour: merge all objects into one (inlays, floating parts)
+
+[render]                      # `bambi render` studio shot
+# framing = "fit"             # fit: zoom to the models; wide: the whole plate
+# scene = "Scene"             # scene to render (default: the saved one)
+
+[print]
+ams_slot = 3                  # AMS tray (0-15), or -1 for external spool
+
+# --- Multi-color (AMS) ---------------------------------------------------------
+# One filament per Blender object: split multi-color parts into separate objects.
+# Listing [[filaments]] replaces [slice].filament and [print].ams_slot.
+# `bambi printer ams <session> --write` fills this from what's loaded in the AMS.
+# Entries with only ams_slot get profile/colour from the AMS via `bambi slice --ams`.
+# [[filaments]]               # filament 1
+# profile = "pla_basic"       # profiles/filament/<name>.json
+# color = "#FFFFFF"           # preview colour in Bambu Studio (optional)
+# ams_slot = 0                # AMS tray 0-15 (default: filament number - 1)
+#
+# [[filaments]]               # filament 2
+# profile = "pla_basic"
+# color = "#000000"
+# ams_slot = 1
+#
+# [objects]                   # exported STL name (no .stl) -> filament number; unlisted = 1
+# Logo = 2
+
+[[filaments]]                 # filament 1: body, orange PLA Basic
+profile = "pla_basic"
+color = "#FF6A13"
+ams_slot = 3
+
+[[filaments]]                 # filament 2: eyes, PLA Silk blue
+profile = "bambu_pla_silk"
+color = "#0047BB"
+ams_slot = 0
+
+[objects]
+Eyes = 2

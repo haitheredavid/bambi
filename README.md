@@ -61,6 +61,7 @@ Every slice drops the plate preview in `sessions/<session>/thumb.png`, and `just
 
 <!-- gallery:start -->
 <p align="center">
+<a href="sessions/2026-09-30-cat-putty-knife/exports/Eyes.stl"><img src="docs/gallery/2026-09-30-cat-putty-knife.png" width="24%" alt="2026-09-30-cat-putty-knife" title="6&quot; (150 mm) PLA putty knife for spreading joint compound on medium wall patches; orange handle ends in a cat head with ears and inlaid blue eyes."></a>
 <a href="sessions/2026-09-27-plate-scraper/exports/Scraper.stl"><img src="docs/gallery/2026-09-27-plate-scraper.png" width="24%" alt="2026-09-27-plate-scraper" title="Simple PLA scraper (flat wedge + handle) for lifting stray filament off the textured PEI plate; end-to-end smoke test of the bambi stack."></a>
 <a href="sessions/2026-09-26-door-sampler/exports/DoorSampler.stl"><img src="docs/gallery/2026-09-26-door-sampler.png" width="24%" alt="2026-09-26-door-sampler" title="Desk display of five world door styles (shoji, Dutch, Moorish, Romanesque, Gothic), each in its own frame on a shared base; first end-to-end pipeline test"></a>
 <a href="sessions/2026-09-26-colossus-tmg/exports/Base.stl"><img src="docs/gallery/2026-09-26-colossus-tmg.png" width="24%" alt="2026-09-26-colossus-tmg" title="Prototype Protoss Colossus for StarCraft TMG: ~170 mm tall, 120 mm beveled base with terrain and 5x3 mm magnet slot, multi-part kit (base, hull, 4 legs) joined with pegs and glue."></a>
