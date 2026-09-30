@@ -10,7 +10,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from bambi import blender, gallery, mesh, profiles, session, slicer
-from bambi.config import ROOT
+from bambi.config import ROOT, get_settings
 
 app = typer.Typer(no_args_is_help=True, help="Blender -> Bambu Studio -> P1S sandbox.")
 printer_app = typer.Typer(
@@ -191,6 +191,7 @@ def slice_cmd(
             object_filaments=ids,
             orient=cfg.get("orient", True),
             arrange=cfg.get("arrange", True),
+            assemble=cfg.get("assemble", False),
             plate=plate or cfg.get("plate", "Textured PEI Plate"),
         )
         res = slicer.run(job)
@@ -279,7 +280,7 @@ def gallery_cmd() -> None:
 
 
 def _render_colors(s: session.Session) -> list[str]:
-    """--color args for render_thumb.py: STL stem -> filament colour, '*' for unlisted."""
+    """--color args for render_studio.py: STL stem -> filament colour, '*' for unlisted."""
     cfg = s.config
     entries = cfg.get("filaments") or []
     colors = [e.get("color") for e in entries]
@@ -295,23 +296,53 @@ def _render_colors(s: session.Session) -> list[str]:
 @app.command()
 def render(
     ref: SessionArg,
+    framing: Annotated[
+        str | None,
+        typer.Option(
+            help="fit: zoom to the models; wide: the whole plate "
+            "(default: [render] framing, else fit)."
+        ),
+    ] = None,
     scene: Annotated[
-        str | None, typer.Option(help="Scene to render (default: the saved one).")
+        str | None,
+        typer.Option(
+            help="Scene to render (default: [render] scene, else the saved one)."
+        ),
     ] = None,
 ) -> None:
-    """Studio render of model.blend's visible meshes to render.png (headless)."""
+    """Studio render of model.blend's visible meshes on the P1S plate to render.png."""
     s = _session(ref)
     if not s.blend.exists():
         console.print("[red]no model.blend[/red]")
         raise typer.Exit(1)
+    try:
+        opts = s.render_options()
+    except ValueError as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    framing = framing or opts["framing"]
+    if framing not in session.FRAMINGS:
+        console.print(
+            f"[red]--framing must be one of {', '.join(session.FRAMINGS)}[/red]"
+        )
+        raise typer.Exit(1)
+    scene = scene or opts["scene"]
+    studio_blend = get_settings().studio_blend
     out = s.path / gallery.RENDER
     try:
+        if not studio_blend.exists():
+            blender.build_studio(studio_blend)
+            console.print(f"[dim]studio -> {studio_blend.relative_to(ROOT)}[/dim]")
         res = blender.run_script(
-            "render_thumb.py",
+            "render_studio.py",
             blend=s.blend,
             args=[
+                "--studio",
+                str(studio_blend),
                 "--out",
                 str(out),
+                "--framing",
+                framing,
                 *(["--scene", scene] if scene else []),
                 *_render_colors(s),
             ],
@@ -320,9 +351,33 @@ def render(
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     console.print(
-        f"[green]rendered[/green] {out.relative_to(ROOT)} ({res['objects']} objects)"
+        f"[green]rendered[/green] {out.relative_to(ROOT)} "
+        f"({res['objects']} objects, {framing})"
     )
+    for w in res.get("warnings", []):
+        console.print(f"[yellow]{escape(w)}[/yellow]")
     _update_gallery()
+
+
+@app.command("render-scene")
+def render_scene(
+    overwrite: Annotated[
+        bool, typer.Option(help="Replace it, discarding hand edits.")
+    ] = False,
+) -> None:
+    """Build the studio .blend `bambi render` uses (P1S plate, cyclorama, lights, camera)."""
+    path = get_settings().studio_blend
+    if path.exists() and not overwrite:
+        console.print(
+            f"[yellow]{path.relative_to(ROOT)} exists[/yellow] (--overwrite to rebuild)"
+        )
+        raise typer.Exit(1)
+    try:
+        blender.build_studio(path)
+    except blender.BlenderError as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]built[/green] {path.relative_to(ROOT)}")
 
 
 # --- blender ----------------------------------------------------------------

@@ -52,6 +52,20 @@ def test_multicolor_command(tmp_path):
     # The CLI rejects model files and transforms alongside an assemble list.
     assert "a.stl" not in cmd and "--orient" not in cmd and "--arrange" not in cmd
 
+    assert all("assemble_index" not in o for o in plate["objects"])
+
+
+def test_multicolor_assemble_merges_objects(tmp_path):
+    job = slicer.SliceJob(
+        models=[Path("body.stl"), Path("inlay.stl")],
+        output=tmp_path / "x.gcode.3mf",
+        filaments=[slicer.Filament("pla_basic"), slicer.Filament("petg_hf")],
+        object_filaments=[1, 2],
+        assemble=True,
+    )
+    [plate] = job.assemble_list()["plates"]
+    assert [o["assemble_index"] for o in plate["objects"]] == [[1], [1]]
+
 
 def test_filament_ids_validated(tmp_path):
     out = tmp_path / "x.gcode.3mf"

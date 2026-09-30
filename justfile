@@ -68,9 +68,13 @@ slice session *flags:
 build session:
     {{bambi}} build {{session}}
 
-# studio render of model.blend -> sessions/<s>/render.png, shown in the README gallery
+# studio render of model.blend on the P1S plate -> sessions/<s>/render.png (--framing fit|wide)
 render session *flags:
     {{bambi}} render "$@"
+
+# build assets/studio.blend, the scene `render` uses (--overwrite discards hand edits)
+render-scene *flags:
+    {{bambi}} render-scene "$@"
 
 # backfill thumb.png from sliced files and rewrite the README gallery
 gallery:

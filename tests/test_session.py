@@ -118,3 +118,18 @@ def test_profile_less_filament_needs_ams(sessions_dir, tmp_path):
             output=tmp_path / "x.gcode.3mf",
             filaments=[Filament(profile=None, ams_slot=2)],
         )
+
+
+def test_render_options(sessions_dir):
+    s = session.create("cube", base=sessions_dir, today=date(2026, 9, 26))
+    assert s.render_options() == {"framing": "fit", "scene": None}  # template default
+    toml = s.path / "session.toml"
+    toml.write_text(
+        toml.read_text().replace(
+            '# framing = "fit"', 'framing = "wide"\nscene = "Scene"'
+        )
+    )
+    assert s.render_options() == {"framing": "wide", "scene": "Scene"}
+    toml.write_text(toml.read_text().replace('"wide"', '"close"'))
+    with pytest.raises(ValueError, match="framing"):
+        s.render_options()

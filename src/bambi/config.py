@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     sessions_dir: Path = ROOT / "sessions"
     profiles_dir: Path = ROOT / "profiles"
     blender_scripts_dir: Path = ROOT / "blender_scripts"
+    studio_blend: Path = ROOT / "assets" / "studio.blend"
 
     @property
     def bambu_system_profiles(self) -> Path:

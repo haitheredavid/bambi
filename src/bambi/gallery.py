@@ -1,7 +1,7 @@
 """Session thumbnails and the README gallery.
 
 thumb.png comes from the plate preview Bambu Studio embeds in every sliced .gcode.3mf;
-render.png is an optional Blender studio shot (`bambi render`). Both live at the session
+render.png is an optional Blender studio shot on the P1S plate (`bambi render`). Both live at the session
 root so they're committed (out/ is gitignored). The README shows them as uniform
 tiles (docs/gallery/<session>.png) so plate previews and renders sit together in a grid.
 """
@@ -22,7 +22,7 @@ START = "<!-- gallery:start -->"
 END = "<!-- gallery:end -->"
 COLUMNS = 4
 TILE = 480
-BG_TOP, BG_BOTTOM = (28, 30, 35), (46, 48, 53)
+BG_TOP, BG_BOTTOM = (180, 185, 192), (160, 161, 164)  # the studio cyclorama
 
 
 def extract_thumb(threemf: Path, dest: Path, plate: int = 1) -> Path | None:
@@ -75,7 +75,7 @@ def make_tile(src: Path, title: str, subtitle: str, size: int = TILE) -> Image.I
     img = Image.open(src).convert("RGBA")
     tile = Image.new("RGBA", (size, size))
     draw = ImageDraw.Draw(tile)
-    for y in range(size):  # vertical gradient, same palette as render_thumb.py
+    for y in range(size):  # vertical gradient matching render_studio.py
         k = y / (size - 1)
         c = tuple(round(a + (b - a) * k) for a, b in zip(BG_TOP, BG_BOTTOM))
         draw.line([(0, y), (size, y)], fill=(*c, 255))

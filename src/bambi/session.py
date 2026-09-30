@@ -11,6 +11,7 @@ from bambi.config import get_settings
 from bambi.slicer import Filament
 
 TEMPLATE = "_template"
+FRAMINGS = ("fit", "wide")  # `bambi render`: zoom to the models, or the whole plate
 
 
 def slugify(name: str) -> str:
@@ -43,6 +44,16 @@ class Session:
     @property
     def config(self) -> dict:
         return tomllib.loads((self.path / "session.toml").read_text())
+
+    def render_options(self) -> dict:
+        """[render] framing (fit|wide) and scene for `bambi render`, with defaults."""
+        cfg = self.config.get("render", {})
+        framing = cfg.get("framing", "fit")
+        if framing not in FRAMINGS:
+            raise ValueError(
+                f"[render] framing must be one of {', '.join(FRAMINGS)}, not {framing!r}"
+            )
+        return {"framing": framing, "scene": cfg.get("scene")}
 
     def export_files(self) -> list[Path]:
         return sorted(

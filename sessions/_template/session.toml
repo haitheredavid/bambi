@@ -9,6 +9,11 @@ filament = "pla_basic"        # profiles/filament/<name>.json
 plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plate, Supertack Plate
 # orient = true               # let Bambu Studio auto-orient
 # arrange = true              # let Bambu Studio auto-arrange on the plate
+# assemble = true             # multi-colour: merge all objects into one (inlays, floating parts)
+
+[render]                      # `bambi render` studio shot
+# framing = "fit"             # fit: zoom to the models; wide: the whole plate
+# scene = "Scene"             # scene to render (default: the saved one)
 
 [print]
 ams_slot = 0                  # AMS tray (0-15), or -1 for external spool

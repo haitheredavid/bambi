@@ -47,6 +47,9 @@ class SliceJob:
     object_filaments: list[int] | None = None
     orient: bool = True
     arrange: bool = True
+    # Multi-colour only: load all models as parts of one object, keeping their relative
+    # positions. Needed for inlays and details that don't touch the bed.
+    assemble: bool = False
     plate: str = "Textured PEI Plate"
 
     def __post_init__(self) -> None:
@@ -102,6 +105,7 @@ class SliceJob:
         Bambu Studio 2.x ignores --load-filament-ids for plain model inputs, so multi-colour
         jobs load models this way instead. The CLI can't combine it with --orient/--arrange;
         need_arrange covers arranging, and models keep their Blender orientation.
+        With `assemble`, a shared assemble_index merges the models into one object.
         """
         ids = self.object_filaments or [1] * len(self.models)
         return {
@@ -110,7 +114,12 @@ class SliceJob:
                     "plate_name": "",
                     "need_arrange": self.arrange,
                     "objects": [
-                        {"path": str(m), "count": 1, "filaments": [i]}
+                        {
+                            "path": str(m),
+                            "count": 1,
+                            "filaments": [i],
+                            **({"assemble_index": [1]} if self.assemble else {}),
+                        }
                         for m, i in zip(self.models, ids)
                     ],
                 }

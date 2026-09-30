@@ -6,6 +6,7 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 - `src/bambi/`: the `bambi` CLI (typer). Host-side Python 3.13.
 - `blender_scripts/`: run **inside** Blender (`blender -b file.blend -P script.py -- --result out.json ...`). bpy/bmesh only; never import `bambi` here. Each script takes `--result` and writes JSON there.
 - `profiles/{machine,process,filament}/*.json`: flattened Bambu Studio profiles. Regenerate with `bambi profiles sync --overwrite`; tune by editing the JSON (the slicer CLI needs fully resolved files, so no `inherits`).
+- `assets/studio.blend`: render studio (P1S textured PEI plate on a cyclorama, lights, camera at a fixed printer-front angle in scene props `bambi_azimuth`/`bambi_elevation`). `bambi render` appends it and centres the models on the plate. Tweak the look by editing it in Blender; `bambi render-scene --overwrite` rebuilds it from `blender_scripts/build_studio.py`.
 - `sessions/YYYY-MM-DD-<name>/`: one per modeling project. `model.blend` (source), `session.toml` (slice/print settings), `notes.md`, `exports/` (STL), `out/` (sliced `.gcode.3mf`, gitignored). `thumb.png` (plate preview from the sliced 3mf, written on every slice) and `render.png` (`bambi render`) are committed; each slice/render turns the best one into a uniform card in `docs/gallery/<session>.png` and rewrites the README gallery grid (between `<!-- gallery:start/end -->`).
 
 ## Conventions
@@ -14,7 +15,7 @@ Sandbox for designing in Blender, slicing with Bambu Studio, and printing on a B
 - P1S build volume: 256 x 256 x 256 mm.
 - Build plate defaults to Textured PEI (`plate` in `session.toml` or `--plate`). Bambu rejects some filament/plate pairs, e.g. PETG on the Cool Plate.
 - Only visible mesh objects are exported. Hide helper/reference geometry.
-- Multi-colour (AMS) is per object: split a multi-colour part into separate objects, list `[[filaments]]` in `session.toml` and map exported STL names to filament numbers in `[objects]`. Multi-colour slices go through `--load-assemble-list` (Bambu ignores `--load-filament-ids`), so no auto-orient. `bambi printer ams <s> --write` fills `[[filaments]]` from what's loaded in the AMS (tray material codes resolve to Bambu Studio profiles, flattened into `profiles/filament/` on first use); `slice/build --ams` fills profile-less entries at slice time; `printer send` refuses when a tray's material doesn't match.
+- Multi-colour (AMS) is per object: split a multi-colour part into separate objects, list `[[filaments]]` in `session.toml` and map exported STL names to filament numbers in `[objects]`. Multi-colour slices go through `--load-assemble-list` (Bambu ignores `--load-filament-ids`), so no auto-orient. Parts that don't touch the bed (inlays) need `[slice] assemble = true`, which merges every object into one. `bambi printer ams <s> --write` fills `[[filaments]]` from what's loaded in the AMS (tray material codes resolve to Bambu Studio profiles, flattened into `profiles/filament/` on first use); `slice/build --ams` fills profile-less entries at slice time; `printer send` refuses when a tray's material doesn't match.
 
 ## Starting a new print
 Use the `/new-session <idea>` skill (`.claude/skills/new-session/`): plan first, then create the session, model it via MCP, and slice.
@@ -30,7 +31,8 @@ Use the `/new-session <idea>` skill (`.claude/skills/new-session/`): plan first,
 bambi new <name>            bambi ls
 bambi export <s>            bambi check <s>        bambi slice <s> [--process --filament --ams]
 bambi build <s>             bambi studio <s>       bambi blender open|orient <s>
-bambi render <s> [--scene]  bambi gallery
+bambi render <s> [--framing fit|wide] [--scene]   bambi render-scene [--overwrite]
+bambi gallery
 bambi profiles sync|ls|search <kind> <text>
 bambi printer status        bambi printer ams [<s> --write [--slots 2,0] [-y]]
 bambi printer send <s> [--start] [--plate N] [--ams-slot N (single colour)] [--force] [-y]

@@ -10,5 +10,8 @@ plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plat
 orient = false                # parts are modelled in print orientation
 arrange = true              # let Bambu Studio auto-arrange on the plate
 
+[render]
+scene = "Scene"               # the print layout; the saved scene is the assembly anim
+
 [print]
 ams_slot = 3                  # AMS tray (0-3), or -1 for external spool

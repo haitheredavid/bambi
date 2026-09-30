@@ -41,6 +41,11 @@ def new_blend(path: Path) -> None:
     run_script("setup_scene.py", args=["--save", str(path)], factory_startup=True)
 
 
+def build_studio(path: Path) -> None:
+    """Create the render studio .blend (plate, cyclorama, lights, camera)."""
+    run_script("build_studio.py", args=["--save", str(path)], factory_startup=True)
+
+
 def open_gui(blend: Path) -> subprocess.Popen:
     """Open a .blend in the Blender GUI. The blender-mcp add-on auto-starts its bridge on load."""
     return subprocess.Popen(
