@@ -1,6 +1,6 @@
 # bambi
 
-![a baby deer asleep on the bed of a 3d printer, halfway printed](docs/hero.svg)
+![bambi: vibe shitty prints, a confused geometric fawn in bauhaus poster style](docs/hero.svg)
 
 ## what
 
