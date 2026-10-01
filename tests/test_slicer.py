@@ -113,6 +113,22 @@ def test_plate_is_applied_to_process(tmp_path):
         slicer.SliceJob(models=[], output=out, plate="Glass")
 
 
+def test_process_overrides(tmp_path):
+    out = tmp_path / "x.gcode.3mf"
+    job = slicer.SliceJob(
+        models=[],
+        output=out,
+        overrides={"wall_loops": 5, "sparse_infill_density": "40%"},
+    )
+    data = job.process_config()
+    assert data["wall_loops"] == "5"
+    assert data["sparse_infill_density"] == "40%"
+    with pytest.raises(ValueError, match="unknown process setting"):
+        slicer.SliceJob(
+            models=[], output=out, overrides={"wal_loops": 5}
+        ).process_config()
+
+
 def test_parse_result_sums_plates(tmp_path):
     raw = {
         "sliced_plates": [

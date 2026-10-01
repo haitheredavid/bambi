@@ -10,6 +10,9 @@ plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plat
 # orient = true               # let Bambu Studio auto-orient
 # arrange = true              # let Bambu Studio auto-arrange on the plate
 # assemble = true             # multi-colour: merge all objects into one (inlays, floating parts)
+# [slice.overrides]           # process keys to override (see profiles/process/*.json)
+# wall_loops = 5
+# sparse_infill_density = "40%"
 
 [render]                      # `bambi render` studio shot
 # framing = "fit"             # fit: zoom to the models; wide: the whole plate

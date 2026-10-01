@@ -192,6 +192,7 @@ def slice_cmd(
             orient=cfg.get("orient", True),
             arrange=cfg.get("arrange", True),
             assemble=cfg.get("assemble", False),
+            overrides=cfg.get("overrides", {}),
             plate=plate or cfg.get("plate", "Textured PEI Plate"),
         )
         res = slicer.run(job)

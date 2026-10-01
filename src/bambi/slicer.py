@@ -50,6 +50,8 @@ class SliceJob:
     # Multi-colour only: load all models as parts of one object, keeping their relative
     # positions. Needed for inlays and details that don't touch the bed.
     assemble: bool = False
+    # Process keys to override, e.g. {"wall_loops": 5}. Values are stringified like the profiles.
+    overrides: dict = field(default_factory=dict)
     plate: str = "Textured PEI Plate"
 
     def __post_init__(self) -> None:
@@ -84,9 +86,13 @@ class SliceJob:
         return " + ".join(f.profile or "?" for f in self.filaments)
 
     def process_config(self) -> dict:
-        """The process profile with the build plate applied (the CLI reads curr_bed_type from it)."""
+        """The process profile with the build plate and overrides applied (the CLI reads curr_bed_type from it)."""
         data = json.loads(profiles.path_for("process", self.process).read_text())
         data["curr_bed_type"] = self.plate
+        for key, value in self.overrides.items():
+            if key not in data:
+                raise ValueError(f"unknown process setting {key!r} in overrides")
+            data[key] = str(value)
         return data
 
     def filament_configs(self) -> list[dict]:
