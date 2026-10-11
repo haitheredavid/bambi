@@ -20,9 +20,18 @@ printer_app = typer.Typer(
 )
 blender_app = typer.Typer(no_args_is_help=True, help="Blender helpers.")
 profiles_app = typer.Typer(no_args_is_help=True, help="Slicer profiles.")
+workspace_app = typer.Typer(
+    no_args_is_help=True, help="The print workspace (sessions, gallery, profiles)."
+)
 app.add_typer(printer_app, name="printer")
 app.add_typer(blender_app, name="blender")
 app.add_typer(profiles_app, name="profiles")
+app.add_typer(workspace_app, name="workspace")
+skills_app = typer.Typer(
+    no_args_is_help=True,
+    help="Install bambi's skills into Codex, opencode or Claude (without the plugin).",
+)
+app.add_typer(skills_app, name="skills")
 
 console = Console()
 
@@ -469,6 +478,154 @@ def gallery_cmd() -> None:
     _update_gallery()
 
 
+@workspace_app.command("init")
+def workspace_init(
+    path: Annotated[Path, typer.Argument(help="Folder to make the workspace in.")],
+    default: Annotated[
+        bool | None,
+        typer.Option(
+            help="Make it the default home in ~/.config/bambi/config.toml "
+            "(default: only when none is set)."
+        ),
+    ] = None,
+) -> None:
+    """Scaffold a print workspace: sessions/, profiles/, gallery README, agent config."""
+    from bambi import workspace
+
+    for f in workspace.init(path):
+        console.print(f"[green]+[/green] {f}")
+    if default or (default is None and not workspace.has_default()):
+        workspace.set_default(path)
+        console.print(f"default home -> {path.resolve()}")
+    console.print("next: git init && git lfs install, then `bambi new <name>`")
+
+
+@workspace_app.command("where")
+def workspace_where() -> None:
+    """Print the workspace bambi uses now."""
+    print(get_settings().home)
+
+
+Target = Annotated[
+    str, typer.Option(help="claude | codex | opencode | agents (.agents/skills).")
+]
+Project = Annotated[
+    Path | None,
+    typer.Option(help="Install into this project instead of the user's home."),
+]
+
+
+def _target(target: str) -> str:
+    from bambi import skills_install
+
+    if target not in skills_install.TARGETS:
+        console.print(
+            f"[red]--target is one of {', '.join(skills_install.TARGETS)}[/red]"
+        )
+        raise typer.Exit(1)
+    return target
+
+
+@skills_app.command("install")
+def skills_install_cmd(
+    target: Target,
+    project: Project = None,
+    link: Annotated[
+        bool, typer.Option(help="Symlink to this checkout (dev) instead of copying.")
+    ] = False,
+) -> None:
+    """Copy the skills in (re-run after upgrading bambi)."""
+    from bambi import skills_install
+
+    _target(target)
+    if link and not skills_install.is_checkout():
+        console.print("[red]--link needs a source checkout of bambi[/red]")
+        raise typer.Exit(1)
+    try:
+        paths = skills_install.install(target, project, link=link)
+    except (FileExistsError, ValueError) as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    for p in paths:
+        console.print(f"[green]+[/green] {p}")
+    if target == "opencode":
+        console.print(f"opencode asks before `{skills_install.OPENCODE_ASK}`")
+    if target == "codex":
+        console.print("codex: keep an approval mode that asks before commands run")
+
+
+@skills_app.command("uninstall")
+def skills_uninstall_cmd(target: Target, project: Project = None) -> None:
+    """Remove skills bambi installed (leaves anything else alone)."""
+    from bambi import skills_install
+
+    for p in skills_install.uninstall(_target(target), project):
+        console.print(f"[red]-[/red] {p}")
+
+
+@skills_app.command("ls")
+def skills_ls(project: Project = None) -> None:
+    """Show where bambi's skills are installed and at which version."""
+    from bambi import skills_install
+
+    current = skills_install.bambi_version()
+    for target in skills_install.TARGETS:
+        found = skills_install.installed(target, project)
+        if not found:
+            continue
+        where = skills_install.target_dir(target, project)
+        versions = set(found.values())
+        stale = versions - {current, "link"}
+        tag = (
+            f"[yellow]stale {', '.join(stale)}[/yellow]"
+            if stale
+            else "[green]ok[/green]"
+        )
+        console.print(f"{target:9} {where}  {len(found)} skills  {tag}")
+
+
+@app.command()
+def doctor() -> None:
+    """Check Blender, Bambu Studio, workspace, profiles, printer, MCP and skills."""
+    from bambi import doctor as doc
+
+    checks = doc.run()
+    colour = {"ok": "green", "warn": "yellow", "fail": "red"}
+    for c in checks:
+        console.print(
+            f"[{colour[c.status]}]{c.status:4}[/{colour[c.status]}] "
+            f"{c.name:16} {escape(c.detail)}"
+        )
+    if any(c.status == "fail" for c in checks):
+        raise typer.Exit(1)
+
+
+@app.command("docs")
+def docs_cmd(
+    topic: Annotated[
+        str | None, typer.Argument(help="Topic to print; omit to list them.")
+    ] = None,
+) -> None:
+    """Print a reference doc (P1S rules, readiness taxonomy, print contract, ...)."""
+    from importlib.resources import files
+
+    docs = {
+        p.name.removesuffix(".md"): p
+        for p in files("bambi").joinpath("docs").iterdir()
+        if p.name.endswith(".md")
+    }
+    if topic is None:
+        for name in sorted(docs):
+            console.print(name)
+        return
+    if topic.removesuffix(".md") not in docs:
+        console.print(
+            f"[red]no doc {escape(topic)}; one of: {', '.join(sorted(docs))}[/red]"
+        )
+        raise typer.Exit(1)
+    print(docs[topic.removesuffix(".md")].read_text())
+
+
 def _render_colors(s: session.Session) -> list[str]:
     """--color args for render_studio.py: STL stem -> filament colour, '*' for unlisted."""
     cfg = s.config
@@ -605,9 +762,16 @@ def profiles_sync(
     overwrite: Annotated[
         bool, typer.Option(help="Replace existing local profiles.")
     ] = False,
+    bundled: Annotated[
+        bool,
+        typer.Option(
+            help="Dev: refresh the profiles bambi ships, not the workspace's."
+        ),
+    ] = False,
 ) -> None:
-    """Flatten Bambu Studio's system profiles into profiles/."""
-    written = profiles.sync(overwrite=overwrite)
+    """Flatten Bambu Studio's system profiles into the workspace's profiles/."""
+    dest = get_settings().bundled_profiles_dir if bundled else None
+    written = profiles.sync(dest=dest, overwrite=overwrite)
     for p in written:
         console.print(f"[green]wrote[/green] {p}")
     if not written:
@@ -617,9 +781,8 @@ def profiles_sync(
 @profiles_app.command("ls")
 def profiles_ls() -> None:
     """List local profiles."""
-    root = profiles.get_settings().profiles_dir
     for kind in ("machine", "process", "filament"):
-        names = sorted(p.stem for p in (root / kind).glob("*.json"))
+        names = profiles.local_names(kind)
         console.print(f"[bold]{kind}[/bold]: {', '.join(names) or '-'}")
 
 
@@ -755,8 +918,18 @@ def printer_send(
     ] = 1,
 ) -> None:
     """Upload the session's sliced .gcode.3mf, optionally starting the print."""
+    import sys
+
     from bambi import printer
 
+    if start and not yes and not sys.stdin.isatty():
+        # Agents run without a terminal: never start unconfirmed. They must ask the user,
+        # then pass -y.
+        console.print(
+            "[red]--start needs confirmation: run it in a terminal, or pass -y "
+            "once the user has confirmed plate, filament and trays[/red]"
+        )
+        raise typer.Exit(1)
     s = _session(ref)
     sliced = s.sliced_files()
     if not sliced:

@@ -13,10 +13,13 @@ wheels/
 .env
 *.blend1
 *.blend@
-sessions/*/out/*
-!sessions/*/out/.gitkeep
+examples/*/out/*
+!examples/*/out/.gitkeep
 .DS_Store
 
 **/worktrees/
-# third-party reference images (not ours to publish)
-sessions/refs/
+
+# npm package: copied from src/bambi/skills at pack time
+npm/skills/
+*.tgz
+npm/LICENSE

@@ -1,6 +1,6 @@
 """Readiness triage: what a workspace still needs before it's worth slicing and printing.
 
-One row per need in the taxonomy (plugin/references/readiness-taxonomy.md), each with a
+One row per need in the taxonomy (`bambi docs readiness-taxonomy`), each with a
 status and the skill or command that resolves it. `bambi plan` prints these; the
 /bambi:print router skill reads them as JSON.
 """

@@ -128,7 +128,7 @@ def test_filament_changes_counts_ams_loads(tmp_path):
     ],
 )
 def test_send_guard_hook(command, asks):
-    hook = ROOT / "plugin" / "hooks" / "guard_send.py"
+    hook = ROOT / "hooks" / "guard_send.py"
     out = subprocess.run(
         [sys.executable, str(hook)],
         input=json.dumps({"tool_input": {"command": command}}),

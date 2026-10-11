@@ -83,8 +83,7 @@ def local_name(system_name: str) -> str:
 
 def local_filament(filament_id: str, root: Path | None = None) -> str | None:
     """Local profiles/filament/<name> already made for this material code."""
-    root = root or get_settings().profiles_dir
-    for path in sorted((root / "filament").glob("*.json")):
+    for path in _files("filament", root):
         try:
             if json.loads(path.read_text()).get("filament_id") == filament_id:
                 return path.stem
@@ -114,14 +113,18 @@ def ensure_filament(filament_id: str, index: "ProfileIndex | None" = None) -> st
 
 
 def sync(dest: Path | None = None, overwrite: bool = False) -> list[Path]:
-    """Write flattened copies of DEFAULTS into profiles/<kind>/<local>.json."""
+    """Write flattened copies of DEFAULTS into profiles/<kind>/<local>.json.
+
+    `dest` defaults to the workspace's profiles/; pass the bundled dir to refresh what ships.
+    """
     settings = get_settings()
     dest = dest or settings.profiles_dir
     index = ProfileIndex(settings.bambu_system_profiles)
     written = []
     for local, (kind, system_name) in DEFAULTS.items():
         out = dest / kind / f"{local}.json"
-        if out.exists() and not overwrite:
+        # Bundled copies count as present: the workspace only gets what it overrides.
+        if not overwrite and (out.exists() or local in local_names(kind)):
             continue
         data = index.flatten(kind, system_name)
         data["instantiation"] = "true"
@@ -131,13 +134,30 @@ def sync(dest: Path | None = None, overwrite: bool = False) -> list[Path]:
     return written
 
 
+def _roots(root: Path | None = None) -> list[Path]:
+    """Workspace profiles first (synced or hand-tuned), then the ones bambi ships."""
+    if root:
+        return [root]
+    settings = get_settings()
+    return [settings.profiles_dir, settings.bundled_profiles_dir]
+
+
+def _files(kind: str, root: Path | None = None) -> list[Path]:
+    """One file per profile name, the workspace copy shadowing the bundled one."""
+    found: dict[str, Path] = {}
+    for r in reversed(_roots(root)):
+        found |= {p.stem: p for p in (r / kind).glob("*.json")}
+    return [found[k] for k in sorted(found)]
+
+
 def path_for(kind: str, local: str) -> Path:
-    path = get_settings().profiles_dir / kind / f"{local}.json"
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run `bambi profiles sync`")
-    return path
+    for r in _roots():
+        if (path := r / kind / f"{local}.json").exists():
+            return path
+    raise FileNotFoundError(
+        f"no {kind} profile {local!r}; see `bambi profiles ls` or `bambi profiles sync`"
+    )
 
 
 def local_names(kind: str, root: Path | None = None) -> list[str]:
-    root = root or get_settings().profiles_dir
-    return sorted(p.stem for p in (root / kind).glob("*.json"))
+    return [p.stem for p in _files(kind, root)]

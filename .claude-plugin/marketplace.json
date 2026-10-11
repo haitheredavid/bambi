@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "bambi",
-      "source": "./plugin",
+      "source": "./",
       "description": "Get a Blender model ready to print on a Bambu Lab P1S, slice it with Bambu Studio, print it, and feed results back to the model."
     }
   ]

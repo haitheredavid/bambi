@@ -1,0 +1,17 @@
+{
+  "extraKnownMarketplaces": {
+    "bambi": { "source": { "source": "github", "repo": "haitheredavid/bambi" } }
+  },
+  "enabledPlugins": { "bambi@bambi": true },
+  "permissions": {
+    "allow": [
+      "Bash(bambi ls:*)",
+      "Bash(bambi docs:*)",
+      "Bash(bambi check:*)",
+      "Bash(bambi plan:*)",
+      "Bash(bambi colour:*)",
+      "Bash(bambi log show:*)",
+      "Bash(bambi printer status:*)"
+    ]
+  }
+}

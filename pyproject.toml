@@ -1,8 +1,10 @@
 [project]
 name = "bambi"
-version = "0.1.0"
+version = "0.2.0"
 description = "Blender -> Bambu Studio -> Bambu P1S 3D printing sandbox"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "David Morgan", email = "haitheredavid@gmail.com" }
 ]

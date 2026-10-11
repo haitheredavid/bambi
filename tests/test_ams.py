@@ -37,12 +37,13 @@ def profiles_dir(tmp_path, monkeypatch):
     root = tmp_path / "profiles"
     (root / "filament").mkdir(parents=True)
     for name in ("pla_basic", "petg_hf"):
-        src = get_settings().profiles_dir / "filament" / f"{name}.json"
+        src = get_settings().bundled_profiles_dir / "filament" / f"{name}.json"
         (root / "filament" / src.name).write_text(src.read_text())
     (root / "filament" / "support.json").write_text(
         json.dumps({"filament_id": "GFS02", "filament_type": ["PLA"]})
     )
     monkeypatch.setenv("PROFILES_DIR", str(root))
+    monkeypatch.setenv("BUNDLED_PROFILES_DIR", str(tmp_path / "none"))
     get_settings.cache_clear()
     yield root
     get_settings.cache_clear()

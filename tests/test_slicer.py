@@ -13,7 +13,7 @@ def test_command_uses_local_profiles(tmp_path):
     )
     process = tmp_path / "process.json"
     cmd = job.command(process, bin_path=Path("/bin/BambuStudio"))
-    root = get_settings().profiles_dir
+    root = get_settings().bundled_profiles_dir
     assert cmd[0] == "/bin/BambuStudio"
     assert cmd[cmd.index("--load-settings") + 1] == (
         f"{root / 'machine/p1s_0.4.json'};{process}"

@@ -2,7 +2,7 @@
 
 The spec carries intent (orientation, supports policy, colour method, joints, coupons), never
 Bambu Studio keys; this module translates intent into slice settings. bambi only reads specs.
-Schema: plugin/references/print-spec.md. Version 0 (no "schema" key) is the original pack
+Schema: `bambi docs print-spec`. Version 0 (no "schema" key) is the original pack
 manifest and still loads; its parts simply carry no intent.
 """
 

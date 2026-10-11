@@ -241,7 +241,11 @@ def create(name: str, base: Path | None = None, today: date | None = None) -> Se
     dest = base / f"{(today or datetime.now().astimezone().date()).isoformat()}-{slug}"
     if dest.exists():
         raise FileExistsError(dest)
-    shutil.copytree(base / TEMPLATE, dest, ignore=shutil.ignore_patterns(".DS_Store"))
+    # A workspace may keep its own sessions/_template; otherwise use the bundled one.
+    template = base / TEMPLATE
+    if not template.is_dir():
+        template = get_settings().session_template
+    shutil.copytree(template, dest, ignore=shutil.ignore_patterns(".DS_Store"))
     toml = dest / "session.toml"
     toml.write_text(
         toml.read_text().replace("{{name}}", slug).replace("{{date}}", dest.name[:10])
@@ -251,6 +255,8 @@ def create(name: str, base: Path | None = None, today: date | None = None) -> Se
 
 def list_all(base: Path | None = None) -> list[Session]:
     base = sessions_dir(base)
+    if not base.is_dir():
+        return []
     return [
         Session(p)
         for p in sorted(base.iterdir())

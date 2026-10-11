@@ -1,0 +1,39 @@
+{
+  "name": "@notrealarchitecture/bambi",
+  "version": "0.2.0",
+  "description": "Print-readiness skills and CLI for Blender models on a Bambu Lab P1S: check, orient, split, colour, slice, print. Installs the skills into Codex, opencode or Claude Code; runs the bambi CLI through uv.",
+  "author": "David Morgan <haitheredavid@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haitheredavid/bambi.git",
+    "directory": "npm"
+  },
+  "keywords": [
+    "3d-printing",
+    "blender",
+    "bambu",
+    "p1s",
+    "agent-skills",
+    "codex",
+    "opencode",
+    "claude-code"
+  ],
+  "bin": {
+    "bambi": "bin/bambi.js"
+  },
+  "files": [
+    "bin",
+    "skills"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prepack": "node scripts/sync-skills.js",
+    "check": "node scripts/sync-skills.js --check"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

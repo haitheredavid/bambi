@@ -1,0 +1,19 @@
+{
+  "name": "bambi",
+  "version": "0.2.0",
+  "description": "Get a Blender model ready to print on a Bambu Lab P1S: readiness triage, printability checks, orientation, splitting and joinery, colour strategy, Bambu Studio slicing, printing, and a results log that feeds back into the model.",
+  "author": {
+    "name": "David Morgan",
+    "email": "haitheredavid@gmail.com"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/haitheredavid/bambi",
+  "keywords": [
+    "3d-printing",
+    "blender",
+    "bambu",
+    "p1s",
+    "slicing"
+  ],
+  "skills": "./src/bambi/skills/"
+}

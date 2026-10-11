@@ -10,11 +10,11 @@ default:
 
 # --- setup / dev -------------------------------------------------------------
 
-# install deps, create .env if missing, flatten slicer profiles
+# install deps, create .env if missing, check the toolchain
 setup:
     uv sync
     test -f .env || cp .env.example .env
-    {{bambi}} profiles sync
+    {{bambi}} doctor || true
 
 # run tests
 test *args:
@@ -22,21 +22,46 @@ test *args:
 
 # lint + format check
 lint:
-    uv run ruff check .
-    uv run ruff format --check .
+    uv run ruff check src tests scripts
+    uv run ruff format --check src tests scripts
 
 # auto-fix lint + format
 fmt:
-    uv run ruff check --fix .
-    uv run ruff format .
+    uv run ruff check --fix src tests scripts
+    uv run ruff format src tests scripts
 
 # validate the Claude Code plugin and marketplace manifests
 plugin-check:
-    claude plugin validate plugin --strict
     claude plugin validate . --strict
 
 # lint + tests + plugin manifests
 ci: lint test plugin-check
+    uv run python scripts/sync_version.py --check
+
+# symlink the skills into a harness for dev: just skills-link codex
+skills-link target="codex":
+    {{bambi}} skills install --target {{target}} --link
+
+# copy skills into npm/ and dry-run the package
+npm-pack:
+    cd npm && npm run prepack && npm pack --dry-run
+
+# copy the pyproject version into plugin.json and npm/package.json
+sync-version:
+    uv run python scripts/sync_version.py
+
+# bump (patch|minor|major, or X.Y.Z), sync manifests, commit and tag vX.Y.Z; push to publish
+release bump="patch":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test -z "$(git status --porcelain)" || { echo "commit or stash first"; exit 1; }
+    case "{{bump}}" in patch|minor|major) uv version --bump "{{bump}}" ;; *) uv version "{{bump}}" ;; esac
+    v=$(uv run python scripts/sync_version.py)
+    just ci
+    git add pyproject.toml uv.lock .claude-plugin/plugin.json npm/package.json
+    git commit -m "chore: release v$v"
+    git tag -a "v$v" -m "v$v"
+    echo "push with: git push --follow-tags  (the release workflow publishes v$v)"
 
 # --- sessions ----------------------------------------------------------------
 
@@ -147,9 +172,9 @@ print session *flags:
 profiles:
     {{bambi}} profiles ls
 
-# re-flatten profiles from the installed Bambu Studio (overwrites local edits)
+# re-flatten the bundled profiles from the installed Bambu Studio (dev; overwrites edits)
 profiles-refresh:
-    {{bambi}} profiles sync --overwrite
+    {{bambi}} profiles sync --bundled --overwrite
 
 # search Bambu Studio system profiles: just profile-search filament "PLA Matte"
 profile-search kind text:

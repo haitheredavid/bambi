@@ -1,31 +1,48 @@
 """Settings loaded from environment / .env.
 
-bambi runs either from its source checkout (`uv run bambi`, or the plugin launcher) or as an
-installed tool. `home` holds the data that isn't code: profiles/, sessions/, assets/. In the
-checkout that's the repo itself; otherwise BAMBI_HOME or ~/.local/share/bambi.
+Code and bundled data (profiles, session template, docs) ship in the package. Print work lives
+in a separate *workspace*, the `home`: sessions/, profile overrides, the render studio, the
+gallery. home = BAMBI_HOME, else `home` in ~/.config/bambi/config.toml, else a source checkout
+that still has sessions/ (legacy layout), else ~/bambi. `bambi workspace init` makes one.
 """
 
 import os
+import tomllib
 from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SOURCE = Path(__file__).resolve().parents[2]
 CONFIG_DIR = Path.home() / ".config" / "bambi"
 
 
+DATA = Path(str(files("bambi") / "data"))
+CONFIG_FILE = CONFIG_DIR / "config.toml"
+
+
 def is_checkout(path: Path = SOURCE) -> bool:
-    return (path / "pyproject.toml").exists() and (path / "profiles").is_dir()
+    return (path / "pyproject.toml").exists() and (path / "sessions").is_dir()
+
+
+def configured_home() -> Path | None:
+    try:
+        home = tomllib.loads(CONFIG_FILE.read_text()).get("home")
+    except (FileNotFoundError, tomllib.TOMLDecodeError):
+        return None
+    return Path(home).expanduser() if home else None
 
 
 def find_home() -> Path:
     if env := os.environ.get("BAMBI_HOME"):
         return Path(env).expanduser()
+    if home := configured_home():
+        return home
     if is_checkout():
         return SOURCE
-    return Path.home() / ".local" / "share" / "bambi"
+    return Path.home() / "bambi"
 
 
 # Kept for callers that print paths relative to the data home.
@@ -49,10 +66,12 @@ class Settings(BaseSettings):
         "/Applications/BambuStudio.app/Contents/MacOS/BambuStudio"
     )
 
-    home: Path = ROOT
+    home: Path = Field(default=ROOT, validation_alias="BAMBI_HOME")  # not $HOME
     sessions_dir: Path = ROOT / "sessions"
     profiles_dir: Path = ROOT / "profiles"
     blender_scripts_dir: Path = Path(str(files("bambi") / "blender_scripts"))
+    bundled_profiles_dir: Path = DATA / "profiles"
+    session_template: Path = DATA / "session_template"
     studio_blend: Path = ROOT / "assets" / "studio.blend"
 
     @property

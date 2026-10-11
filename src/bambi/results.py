@@ -4,7 +4,7 @@ bambi writes it; the modelling side reads it. `runs` record checks, slices, prin
 picks. `recommendations` are changes bambi suggests to the model (a model.toml key or a builder
 parameter). The model closes one by listing its id in [print] feedback_applied or
 feedback_declined, which `blend print-pack` copies into the spec. Schema:
-plugin/references/print-results.md.
+`bambi docs print-results`.
 """
 
 import json
