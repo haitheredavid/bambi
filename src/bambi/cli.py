@@ -1,5 +1,6 @@
 """`bambi` command line."""
 
+import json
 import subprocess
 from pathlib import Path
 from typing import Annotated
@@ -9,8 +10,8 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from bambi import blender, gallery, mesh, profiles, session, slicer
-from bambi.config import ROOT, get_settings
+from bambi import blender, gallery, mesh, printability, profiles, session, slicer, spec
+from bambi.config import ROOT, get_settings, rel
 
 app = typer.Typer(no_args_is_help=True, help="Blender -> Bambu Studio -> P1S sandbox.")
 printer_app = typer.Typer(
@@ -26,7 +27,11 @@ app.add_typer(profiles_app, name="profiles")
 console = Console()
 
 SessionArg = Annotated[
-    str, typer.Argument(help="Session folder name or unique part of it.")
+    str,
+    typer.Argument(
+        help="Session folder name or unique part of it, or a path: a workspace with "
+        "session.toml, a print pack, or a blender-sessions model folder (= its print/)."
+    ),
 ]
 
 
@@ -36,6 +41,28 @@ def _session(ref: str) -> session.Session:
     except LookupError as e:
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
+
+
+def _refuse_pack(s: session.Session, what: str) -> None:
+    if s.is_pack:
+        console.print(
+            f"[red]{escape(s.name)} is a print pack: {what} belongs to the modelling repo. "
+            "Change it there and re-pack (`blend print-pack`), or log a recommendation "
+            "with `bambi log rec`.[/red]"
+        )
+        raise typer.Exit(1)
+
+
+def _warn_stale(s: session.Session) -> None:
+    """A pack re-packed since `bambi init` may have new parts or intent."""
+    if not s.is_pack:
+        return
+    seen = s.config.get("source", {}).get("spec_hash")
+    if seen and (now := s.spec_hash()) and now != seen:
+        console.print(
+            f"[yellow]the pack changed since `bambi init` (spec {seen} -> {now}); "
+            "re-run `bambi init --force` if its intent (supports, filaments) changed[/yellow]"
+        )
 
 
 # --- sessions ---------------------------------------------------------------
@@ -54,6 +81,50 @@ def new(
         except blender.BlenderError as e:
             console.print(f"[yellow]couldn't create model.blend:[/yellow] {e}")
     console.print(f"[green]created[/green] {s.path}")
+
+
+@app.command()
+def init(
+    directory: Annotated[
+        Path,
+        typer.Argument(help="Print pack folder (has manifest.json) or model folder."),
+    ],
+    pack: Annotated[
+        str | None, typer.Option(help="Pack under a model's print/, e.g. coupon.")
+    ] = None,
+    process: Annotated[
+        str, typer.Option(help="profiles/process/<name>")
+    ] = "0.20mm_standard",
+    force: Annotated[
+        bool, typer.Option(help="Replace an existing session.toml.")
+    ] = False,
+) -> None:
+    """Make a print pack sliceable: write its session.toml from the spec (manifest.json)."""
+    if (directory / "model.toml").exists():
+        directory = directory / "print" / (pack or "")
+    elif pack:
+        directory = directory / pack
+    try:
+        s = session.init_pack(directory, process=process, force=force)
+    except FileExistsError as e:
+        console.print(
+            f"[yellow]{rel(Path(str(e)))} exists[/yellow] (--force to rewrite)"
+        )
+        raise typer.Exit(1)
+    except LookupError as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    cfg = s.config
+    sl = cfg["slice"]
+    console.print(f"[green]wrote[/green] {rel(s.path / 'session.toml')}")
+    console.print(
+        f"  {s.name}: {len(s.export_files())} parts, {sl['filament']}, {sl['process']}, "
+        f"supports {spec.support_policy(s.spec) or 'per profile'}"
+        + (", assemble" if sl.get("assemble") else "")
+    )
+    gitignore = s.path / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text("out/\n")
 
 
 @app.command("ls")
@@ -80,6 +151,7 @@ def export(
 ) -> None:
     """Export mesh objects from the session's model.blend to exports/*.stl."""
     s = _session(ref)
+    _refuse_pack(s, "stl/")
     if not s.blend.exists():
         console.print(f"[red]{s.blend} does not exist[/red]")
         raise typer.Exit(1)
@@ -99,21 +171,53 @@ def export(
 
 
 @app.command()
-def check(ref: SessionArg) -> None:
-    """Printability checks: Blender (source scene) and trimesh (exported files)."""
+def check(
+    ref: SessionArg,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the report as JSON only.")
+    ] = False,
+    layers: Annotated[
+        bool, typer.Option(help="Layer analysis: ceilings, bridges, thin walls.")
+    ] = True,
+) -> None:
+    """Printability checks: the Blender scene, then each exported part layer by layer.
+
+    Fails (exit 1) on broken meshes and on 'block' findings: unsupported ceilings, ledges
+    and islands the current supports setting won't print, and sub-0.4 mm features.
+    """
     s = _session(ref)
-    material = s.config.get("slice", {}).get("filament", "pla").split("_")[0]
+    out = console if not as_json else Console(quiet=True)
+    report, failed = _check(s, out, layers)
+    if as_json:
+        typer.echo(json.dumps(report, indent=2))
+    if failed:
+        raise typer.Exit(1)
+
+
+def _check(s: session.Session, out: Console, layers: bool = True) -> tuple[dict, bool]:
+    """Run every check, print tables to `out`, log the run; (report, failed)."""
+    material = s.material()
+    h, supports = s.layer_height(), s.supports_on()
+    report: dict = {
+        "workspace": str(s.path),
+        "layer_height": h,
+        "supports": supports,
+        "material": material,
+        "scene": [],
+        "parts": [],
+    }
     failed = False
 
-    if s.blend.exists():
+    if s.blend.exists() and not s.is_pack:  # packs are baked; check the STLs
         res = blender.run_script("check_print.py", blend=s.blend)
+        report["scene"] = res["objects"]
         table = Table(
             "object",
             "size mm",
             "non-manifold",
             "overhang",
             "below bed",
-            title="model.blend",
+            title=s.blend.name,
         )
         for o in res["objects"]:
             bad = o["non_manifold_edges"] or o["below_bed"]
@@ -125,26 +229,80 @@ def check(ref: SessionArg) -> None:
                 f"{o['overhang_fraction']:.0%}",
                 "[red]yes[/red]" if o["below_bed"] else "no",
             )
-        console.print(table)
+        out.print(table)
 
-    files = s.export_files()
+    files = [f for f in s.export_files() if f.suffix.lower() == ".stl"]
     if files:
         table = Table(
-            "file", "size", "watertight", "solid weight", "problems", title="exports/"
+            "part",
+            "size",
+            "watertight",
+            "solid weight",
+            "layers",
+            "problems",
+            title=f"{s.exports.name}/ at {h:g} mm layers, supports {'on' if supports else 'off'}",
         )
+        details = []
         for f in files:
             r = mesh.check(f)
             failed |= bool(r.problems)
+            part = {
+                "name": f.stem,
+                "size": [round(v, 2) for v in r.size_mm],
+                "watertight": r.watertight,
+                "volume_cm3": round(r.volume_cm3, 2),
+                "problems": r.problems,
+            }
+            sev = "ok" if not r.problems else "block"
+            if layers and r.watertight:
+                pr = printability.analyse(f, h=h, supports=supports)
+                part.update(pr.to_json())
+                part["problems"] = r.problems + pr.notes
+                sev = max(sev, pr.severity, key=printability.SEVERITY.index)
+                details += [
+                    (f.stem, x.severity, printability.describe(x))
+                    for x in pr.unsupported + pr.thin
+                ]
+            part["severity"] = sev
+            failed |= sev == "block"
+            report["parts"].append(part)
+            colour = {"ok": "green", "warn": "yellow", "block": "red"}[sev]
             table.add_row(
-                f.name,
+                f.stem,
                 mesh.size_mm_str(r.size_mm),
                 "yes" if r.watertight else "[red]no[/red]",
                 f"≤{r.solid_weight_g(material):.0f} g",
-                "; ".join(r.problems) or "-",
+                f"[{colour}]{sev}[/{colour}]",
+                "; ".join(part["problems"]) or "-",
             )
-        console.print(table)
-    if failed:
-        raise typer.Exit(1)
+        out.print(table)
+        for name, sev, text in details:
+            colour = {"warn": "yellow", "block": "red"}.get(sev, "dim")
+            out.print(f"  [{colour}]{sev:5}[/{colour}] {escape(name)}: {escape(text)}")
+        if s.config.get("slice", {}).get("assemble") and len(files) > 1:
+            report["overlaps"] = printability.overlaps_between(files)
+            for a, b, v in report["overlaps"]:
+                out.print(f"  [yellow]warn [/yellow] {a} and {b} overlap by {v} cm³")
+
+    counts = {
+        k: sum(p.get("severity") == k for p in report["parts"])
+        for k in printability.SEVERITY
+    }
+    report["severity"] = "block" if failed else ("warn" if counts["warn"] else "ok")
+    s.out.mkdir(parents=True, exist_ok=True)
+    (s.out / "check.json").write_text(json.dumps(report, indent=2) + "\n")
+    log = s.results()
+    log.add_run(
+        "check",
+        severity=report["severity"],
+        summary=counts,
+        layer_height=h,
+        supports=supports,
+        report=str((s.out / "check.json").relative_to(s.path)),
+        spec_hash=s.spec_hash(),
+    )
+    log.save()
+    return report, failed
 
 
 @app.command("slice")
@@ -167,12 +325,17 @@ def slice_cmd(
 ) -> None:
     """Slice exports/ into out/<session>.gcode.3mf with Bambu Studio."""
     s = _session(ref)
+    _warn_stale(s)
     cfg = s.config.get("slice", {})
     models = [
         f for f in s.export_files() if f.suffix.lower() in {".stl", ".3mf", ".obj"}
     ]
     if not models:
-        console.print("[red]no exports; run `bambi export` first[/red]")
+        console.print(
+            "[red]nothing to slice; "
+            + ("re-run `blend print-pack`" if s.is_pack else "run `bambi export` first")
+            + "[/red]"
+        )
         raise typer.Exit(1)
     try:
         if filament:  # override forces a single-filament print
@@ -215,8 +378,27 @@ def slice_cmd(
                 f"-> AMS slot {f.ams_slot}, {grams:.1f} g: {', '.join(used) or '-'}"
             )
     if gallery.extract_thumb(res.output, s.path / gallery.THUMB):
-        console.print(f"[dim]thumb -> {s.path.relative_to(ROOT) / gallery.THUMB}[/dim]")
-    _update_gallery()
+        console.print(f"[dim]thumb -> {rel(s.path / gallery.THUMB)}[/dim]")
+    log = s.results()
+    run = log.add_run(
+        "slice",
+        file=str(res.output.relative_to(s.path)),
+        machine=job.machine,
+        process=job.process,
+        filaments=[f.profile for f in job.filaments],
+        plate=job.plate,
+        overrides=job.overrides,
+        seconds=round(res.seconds),
+        grams=round(res.grams, 1),
+        grams_per_filament=[round(g, 1) for g in res.grams_per_filament],
+        filament_changes=slicer.filament_changes(res.output),
+        spec_hash=s.spec_hash(),
+    )
+    log.save()
+    if run["filament_changes"]:
+        console.print(f"  {run['filament_changes']} filament changes")
+    if s.in_repo():
+        _update_gallery()
 
 
 @app.command()
@@ -225,12 +407,19 @@ def build(
     ams: Annotated[
         bool, typer.Option("--ams", help="Fill filaments from the live AMS.")
     ] = False,
+    strict: Annotated[
+        bool, typer.Option(help="Stop before slicing when checks fail.")
+    ] = False,
 ) -> None:
-    """export -> check -> slice."""
-    export(ref)
+    """export -> check -> slice (packs skip export: their STLs come from upstream)."""
+    if not _session(ref).is_pack:
+        export(ref)
     try:
         check(ref)
     except typer.Exit:
+        if strict:
+            console.print("[red]checks failed; not slicing (--strict)[/red]")
+            raise
         console.print("[yellow]checks reported problems; slicing anyway[/yellow]")
     slice_cmd(ref, ams=ams)
 
@@ -262,7 +451,7 @@ TILES = ROOT / "docs" / "gallery"
 def _update_gallery() -> None:
     sessions = session.list_all()
     for tile in gallery.write_tiles(sessions, TILES):
-        console.print(f"[dim]tile -> {tile.relative_to(ROOT)}[/dim]")
+        console.print(f"[dim]tile -> {rel(tile)}[/dim]")
     md = gallery.gallery_markdown(sessions, ROOT, TILES)
     try:
         if gallery.update_readme(README, md):
@@ -276,7 +465,7 @@ def gallery_cmd() -> None:
     """Backfill thumb.png from sliced 3mfs and rewrite the README gallery."""
     for s in session.list_all():
         if thumb := gallery.backfill(s):
-            console.print(f"thumb -> {thumb.relative_to(ROOT)}")
+            console.print(f"thumb -> {rel(thumb)}")
     _update_gallery()
 
 
@@ -333,7 +522,7 @@ def render(
     try:
         if not studio_blend.exists():
             blender.build_studio(studio_blend)
-            console.print(f"[dim]studio -> {studio_blend.relative_to(ROOT)}[/dim]")
+            console.print(f"[dim]studio -> {rel(studio_blend)}[/dim]")
         res = blender.run_script(
             "render_studio.py",
             blend=s.blend,
@@ -352,12 +541,12 @@ def render(
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
     console.print(
-        f"[green]rendered[/green] {out.relative_to(ROOT)} "
-        f"({res['objects']} objects, {framing})"
+        f"[green]rendered[/green] {rel(out)} ({res['objects']} objects, {framing})"
     )
     for w in res.get("warnings", []):
         console.print(f"[yellow]{escape(w)}[/yellow]")
-    _update_gallery()
+    if s.in_repo():
+        _update_gallery()
 
 
 @app.command("render-scene")
@@ -369,16 +558,14 @@ def render_scene(
     """Build the studio .blend `bambi render` uses (P1S plate, cyclorama, lights, camera)."""
     path = get_settings().studio_blend
     if path.exists() and not overwrite:
-        console.print(
-            f"[yellow]{path.relative_to(ROOT)} exists[/yellow] (--overwrite to rebuild)"
-        )
+        console.print(f"[yellow]{rel(path)} exists[/yellow] (--overwrite to rebuild)")
         raise typer.Exit(1)
     try:
         blender.build_studio(path)
     except blender.BlenderError as e:
         console.print(f"[red]{escape(str(e))}[/red]")
         raise typer.Exit(1)
-    console.print(f"[green]built[/green] {path.relative_to(ROOT)}")
+    console.print(f"[green]built[/green] {rel(path)}")
 
 
 # --- blender ----------------------------------------------------------------
@@ -388,7 +575,7 @@ def render_scene(
 def blender_open(ref: SessionArg) -> None:
     """Open the session's model.blend in the Blender GUI (MCP bridge auto-starts)."""
     s = _session(ref)
-    if not s.blend.exists():
+    if not s.blend.exists() and not s.is_pack:
         blender.new_blend(s.blend)
     blender.open_gui(s.blend)
     console.print(f"opened {s.blend}")
@@ -401,6 +588,7 @@ def blender_orient(
 ) -> None:
     """Drop objects onto the bed and centre them; saves model.blend."""
     s = _session(ref)
+    _refuse_pack(s, "part placement")
     args = ["--no-center"] if no_center else []
     res = blender.run_script("orient.py", blend=s.blend, args=args)
     for m in res["moved"]:
@@ -623,5 +811,435 @@ def printer_send(
         f"[green]uploaded[/green] {file.name}"
         + (f" and started plate {plate}" if start else "")
     )
+    log = s.results()
+    last = log.last("slice")
+    log.add_run(
+        "print",
+        state="started" if start else "uploaded",
+        file=str(file.relative_to(s.path)),
+        plate=plate,
+        slice=last["id"] if last else None,
+        ams_mapping=mapping,
+    )
+    log.save()
     if start and len(plates) > 1 and plate < len(plates):
         console.print(f"next: bambi printer send {s.name} --start --plate {plate + 1}")
+
+
+# --- readiness ----------------------------------------------------------------
+
+STATUS_STYLE = {
+    "ok": "green",
+    "info": "dim",
+    "todo": "cyan",
+    "warn": "yellow",
+    "block": "red",
+}
+
+
+@app.command()
+def plan(
+    ref: SessionArg,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the readiness rows as JSON only.")
+    ] = False,
+    orient: Annotated[
+        bool, typer.Option(help="Rank orientations for parts that need support.")
+    ] = True,
+) -> None:
+    """Readiness triage: what the workspace needs before slicing, and what resolves it."""
+    from bambi import readiness
+
+    s = _session(ref)
+    report, _ = _check(s, Console(quiet=True))
+    rows = readiness.plan(s, report, orient=orient)
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {
+                    "workspace": str(s.path),
+                    "name": s.name,
+                    "kind": s.kind,
+                    "ready": readiness.ready(rows),
+                    "needs": readiness.to_json(rows),
+                    "check": report,
+                },
+                indent=2,
+            )
+        )
+        return
+    table = Table("", "need", "status", "detail", "next", title=f"{s.name} ({s.kind})")
+    for r in rows:
+        st = STATUS_STYLE[r.status]
+        table.add_row(
+            r.key, r.need, f"[{st}]{r.status}[/{st}]", escape(r.detail), escape(r.next)
+        )
+    console.print(table)
+    if readiness.ready(rows):
+        console.print(
+            "[green]ready to slice[/green]: bambi build --strict "
+            + escape(str(rel(s.path)))
+        )
+    else:
+        console.print("[red]not ready[/red]: resolve the block rows first")
+
+
+@app.command()
+def orient(
+    ref: SessionArg,
+    part: Annotated[
+        list[str] | None, typer.Option(help="Part (STL stem); repeat. Default: all.")
+    ] = None,
+    top: Annotated[int, typer.Option(help="Candidates to analyse in full.")] = 4,
+    apply: Annotated[
+        int | None,
+        typer.Option(
+            help="Rotate the part in model.blend to this rank (sessions only)."
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Rank print orientations per part: support area, height, bed contact."""
+    import trimesh
+
+    from bambi import orientation
+
+    s = _session(ref)
+    files = [f for f in s.export_files() if f.suffix.lower() == ".stl"]
+    if part:
+        files = [f for f in files if f.stem in part]
+        if missing := set(part) - {f.stem for f in files}:
+            console.print(
+                f"[red]no exported part(s): {', '.join(sorted(missing))}[/red]"
+            )
+            raise typer.Exit(1)
+    h = s.layer_height()
+    result = {}
+    for f in files:
+        ranked = orientation.rank(
+            trimesh.load_mesh(f, force="mesh"), h=h, full=top, name=f.stem
+        )
+        result[f.stem] = [c.to_json() for c in ranked]
+        if as_json:
+            continue
+        table = Table(
+            "#",
+            "orientation",
+            "rotate°",
+            "height",
+            "contact mm²",
+            "support mm²",
+            "layers",
+            title=f.stem,
+        )
+        for n, c in enumerate(ranked, start=1):
+            d = c.to_json()
+            st = STATUS_STYLE.get(d["severity"] or "ok", "dim")
+            table.add_row(
+                str(n),
+                d["label"],
+                str(d["rotate_deg"]),
+                f"{d['height']:g}",
+                f"{d['contact_mm2']:.0f}",
+                f"{d['support_mm2']:.0f}",
+                f"[{st}]{d['severity']}[/{st}] " + escape("; ".join(d["findings"][:2])),
+            )
+        console.print(table)
+    if as_json:
+        typer.echo(json.dumps(result, indent=2))
+    if apply is None:
+        if not as_json and s.is_pack:
+            console.print(
+                "[dim]packs keep upstream orientation: propose a change with "
+                '`bambi log rec <ws> --target "model.toml:[[print.part]] match=<part> rotate" '
+                "--value '[x, y, z]' --reason ...`[/dim]"
+            )
+        return
+    _refuse_pack(s, "part orientation")
+    if len(files) != 1:
+        console.print("[red]--apply needs exactly one --part[/red]")
+        raise typer.Exit(1)
+    choice = result[files[0].stem][apply - 1]
+    rot = ",".join(str(v) for v in choice["rotate_deg"])
+    res = blender.run_script(
+        "orient.py",
+        blend=s.blend,
+        args=["--objects", files[0].stem, "--rotate", rot, "--no-center"],
+    )
+    console.print(
+        f"[green]rotated[/green] {files[0].stem} by {choice['rotate_deg']} and dropped it on the bed"
+    )
+    for m in res["moved"]:
+        console.print(f"  {m['name']}")
+    console.print("re-export: bambi build --strict " + escape(s.name))
+
+
+@app.command("colour")
+def colour_cmd(
+    ref: SessionArg,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Colour strategies for this workspace: AMS swaps vs glue-in, paint, engrave."""
+    from bambi import colour
+
+    s = _session(ref)
+    models = [f for f in s.export_files() if f.suffix.lower() == ".stl"]
+    fils = s.filaments()
+    try:
+        ids = s.object_filament_ids(models) if len(fils) > 1 else [1] * len(models)
+    except ValueError as e:
+        console.print(f"[red]{escape(str(e))}[/red]")
+        raise typer.Exit(1)
+    sets = colour.layer_sets(list(zip(models, ids)), s.layer_height())
+    rows = colour.strategies(sets, len(set(ids)))
+    advice = colour.recommend(rows)
+    last = s.results().last("slice")
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {
+                    "filaments": len(fils),
+                    "strategies": [r.to_json() for r in rows],
+                    "recommend": advice,
+                    "sliced_filament_changes": last.get("filament_changes")
+                    if last
+                    else None,
+                },
+                indent=2,
+            )
+        )
+        return
+    table = Table(
+        "strategy", "swaps", "+time", "+purge", "model changes", "note", title=s.name
+    )
+    for r in rows:
+        table.add_row(
+            r.name,
+            str(r.swaps),
+            f"{r.extra_minutes:.0f} min",
+            f"{r.extra_grams:.1f} g",
+            escape(r.parts_change),
+            escape(r.note),
+        )
+    console.print(table)
+    console.print(f"recommend: {escape(advice)}")
+    if last and last.get("filament_changes") is not None and len(fils) > 1:
+        console.print(
+            f"[dim]last slice counted {last['filament_changes']} filament changes[/dim]"
+        )
+
+
+# --- results log --------------------------------------------------------------
+
+log_app = typer.Typer(
+    no_args_is_help=True,
+    help="Record what happened (prints, coupon fits) and recommend changes upstream.",
+)
+app.add_typer(log_app, name="log")
+
+
+def _parse_value(text: str):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+
+
+@log_app.command("print")
+def log_print(
+    ref: SessionArg,
+    outcome: Annotated[str, typer.Option(help="ok | failed | partial")],
+    part: Annotated[str | None, typer.Option(help="Part that failed.")] = None,
+    kind: Annotated[
+        str | None,
+        typer.Option(
+            help="sag | warp | adhesion | stringing | fit | layer-shift | snap | spaghetti | other"
+        ),
+    ] = None,
+    z: Annotated[float | None, typer.Option(help="Height of the failure, mm.")] = None,
+    note: Annotated[str, typer.Option(help="What you saw.")] = "",
+    rec: Annotated[
+        list[str] | None,
+        typer.Option(
+            help='Recommendation "<target>=<value>", split at the last "=" (repeatable). '
+            "Use `bambi log rec` when the value itself holds '='."
+        ),
+    ] = None,
+    reason: Annotated[str, typer.Option(help="Why, for --rec.")] = "",
+) -> None:
+    """Log a print's outcome (and failures) against the last slice."""
+    from bambi import results
+
+    s = _session(ref)
+    if outcome not in results.OUTCOMES:
+        console.print(
+            f"[red]--outcome must be one of {', '.join(results.OUTCOMES)}[/red]"
+        )
+        raise typer.Exit(1)
+    if kind and kind not in results.FAILURES:
+        console.print(f"[red]--kind must be one of {', '.join(results.FAILURES)}[/red]")
+        raise typer.Exit(1)
+    log = s.results()
+    last = log.last("slice")
+    failures = (
+        [
+            {
+                k: v
+                for k, v in {
+                    "part": part,
+                    "kind": kind,
+                    "z_mm": z,
+                    "note": note,
+                }.items()
+                if v is not None and v != ""
+            }
+        ]
+        if (part or kind)
+        else []
+    )
+    run = log.add_run(
+        "print",
+        slice=last["id"] if last else None,
+        outcome=outcome,
+        failures=failures,
+        note=note,
+    )
+    console.print(f"[green]logged[/green] {run['id']}: {outcome}")
+    for r in rec or []:
+        target, _, value = r.rpartition("=")  # targets can hold "=" (match=Piece_*)
+        made = log.add_recommendation(
+            target.strip(),
+            _parse_value(value.strip()),
+            reason or note,
+            source=run["id"],
+        )
+        console.print(
+            f"[green]recommend[/green] {made['id']}: {escape(made['target'])} = {made['value']!r}"
+        )
+    log.save()
+
+
+@log_app.command("fit")
+def log_fit(
+    ref: SessionArg,
+    coupon: Annotated[str, typer.Option(help="Coupon id from the spec, or a label.")],
+    value: Annotated[str, typer.Option(help="The value that won, e.g. 0.10.")],
+    note: Annotated[str, typer.Option()] = "",
+    param: Annotated[
+        str | None, typer.Option(help="Model parameter it sets (default: the spec's).")
+    ] = None,
+) -> None:
+    """Log a coupon pick; recommends the winning value for the coupon's parameter."""
+    s = _session(ref)
+    sp = s.spec
+    if param is None and sp:
+        try:
+            param = spec.coupon(sp, coupon).get("param")
+        except LookupError as e:
+            console.print(f"[yellow]{escape(str(e))}[/yellow]")
+    log = s.results()
+    material = s.material()
+    run = log.add_run(
+        "fit",
+        coupon=coupon,
+        param=param,
+        value=_parse_value(value),
+        material=material,
+        note=note,
+    )
+    console.print(f"[green]logged[/green] {run['id']}: {coupon} = {value} ({material})")
+    if param:
+        made = log.add_recommendation(
+            param,
+            _parse_value(value),
+            f"coupon {coupon} pick ({material.upper()}). {note}".strip(),
+            source=run["id"],
+        )
+        console.print(
+            f"[green]recommend[/green] {made['id']}: {escape(param)} = {value}"
+        )
+    log.save()
+
+
+@log_app.command("rec")
+def log_rec(
+    ref: SessionArg,
+    target: Annotated[
+        str,
+        typer.Option(
+            help="model.toml key or builder param, e.g. builders/joinery.py:TENON_CLEAR"
+        ),
+    ],
+    value: Annotated[str, typer.Option(help="JSON or text value.")],
+    reason: Annotated[str, typer.Option()],
+    alt: Annotated[str, typer.Option(help="An alternative fix.")] = "",
+    source: Annotated[str, typer.Option("--from", help="Run id this came from.")] = "",
+) -> None:
+    """Recommend a change to the model upstream."""
+    s = _session(ref)
+    log = s.results()
+    made = log.add_recommendation(
+        target, _parse_value(value), reason, source=source, alt=alt
+    )
+    log.save()
+    console.print(
+        f"[green]recommend[/green] {made['id']}: {escape(target)} = {made['value']!r}"
+    )
+
+
+def _run_facts(r: dict) -> str:
+    if r["kind"] == "slice":
+        text = f"{round(r['seconds'] / 60)} min, {r['grams']} g, {r['process']}"
+        if r.get("filament_changes"):
+            text += f", {r['filament_changes']} swaps"
+        if r.get("overrides"):
+            text += f", overrides {r['overrides']}"
+        return text
+    if r["kind"] == "check":
+        return f"{r['severity']} {r.get('summary', {})}"
+    if r["kind"] == "print":
+        text = r.get("outcome") or r.get("state", "")
+        for f in r.get("failures", []):
+            text += f"; {f.get('part', '')} {f.get('kind', '')} z{f.get('z_mm', '')}"
+        return text + (f" ({r['note']})" if r.get("note") else "")
+    return f"{r['coupon']} = {r['value']} ({r.get('material', '')})"
+
+
+@log_app.command("show")
+def log_show(
+    ref: SessionArg,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Runs and recommendations, with which recommendations the model has closed."""
+    s = _session(ref)
+    log = s.results()
+    closed = spec.closed(s.spec) if s.spec else set()
+    if as_json:
+        data = dict(log.data)
+        data["recommendations"] = [
+            r | {"status": "closed" if r["id"] in closed else "pending"}
+            for r in log.recommendations
+        ]
+        typer.echo(json.dumps(data, indent=2))
+        return
+    table = Table("run", "kind", "when", "facts", title=f"{s.name}: runs")
+    for r in log.runs:
+        facts = _run_facts(r)
+        table.add_row(
+            r["id"], r["kind"], r["at"][:16].replace("T", " "), escape(str(facts))
+        )
+    console.print(table)
+    if log.recommendations:
+        table = Table(
+            "rec", "status", "target", "value", "reason", title="recommendations"
+        )
+        for r in log.recommendations:
+            st = "closed" if r["id"] in closed else "[yellow]pending[/yellow]"
+            table.add_row(
+                r["id"],
+                st,
+                escape(r["target"]),
+                escape(repr(r["value"])),
+                escape(r["reason"]),
+            )
+        console.print(table)

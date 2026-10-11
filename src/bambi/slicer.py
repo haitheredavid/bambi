@@ -1,8 +1,10 @@
 """Slice models with the Bambu Studio CLI into printer-ready .gcode.3mf files."""
 
 import json
+import re
 import subprocess
 import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -18,6 +20,10 @@ PLATES = (
     "Supertack Plate",
 )
 
+
+# Real process settings the flattened system profiles leave at Bambu's built-in default, so
+# they're absent from profiles/process/*.json but still valid overrides.
+EXTRA_PROCESS_KEYS = {"brim_type"}
 
 # The AMS holds up to 4 units x 4 trays.
 MAX_FILAMENTS = 16
@@ -90,7 +96,7 @@ class SliceJob:
         data = json.loads(profiles.path_for("process", self.process).read_text())
         data["curr_bed_type"] = self.plate
         for key, value in self.overrides.items():
-            if key not in data:
+            if key not in data and key not in EXTRA_PROCESS_KEYS:
                 raise ValueError(f"unknown process setting {key!r} in overrides")
             data[key] = str(value)
         return data
@@ -255,6 +261,23 @@ def run(job: SliceJob) -> SliceResult:
         msg = raw.get("error_string") or f"exit {proc.returncode}"
         raise SliceError(f"slicing failed: {msg}\n{tail}")
     return parse_result(job.output, raw)
+
+
+# Each AMS load in Bambu's P1S gcode starts with "M620 S<tray>A"; the first per plate is the
+# initial load, the rest are filament changes.
+AMS_LOAD = re.compile(rb"^M620 S\d+A", re.MULTILINE)
+
+
+def filament_changes(threemf: Path) -> int:
+    """Filament swaps across all plates of a sliced .gcode.3mf."""
+    try:
+        with zipfile.ZipFile(threemf) as z:
+            names = [
+                n for n in z.namelist() if re.fullmatch(r"Metadata/plate_\d+\.gcode", n)
+            ]
+            return sum(max(len(AMS_LOAD.findall(z.read(n))) - 1, 0) for n in names)
+    except zipfile.BadZipFile:
+        return 0
 
 
 def studio_app(bin_path: Path | None = None) -> Path:

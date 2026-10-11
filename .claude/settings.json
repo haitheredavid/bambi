@@ -1,0 +1,19 @@
+{
+  "extraKnownMarketplaces": {
+    "bambi": {
+      "source": { "source": "directory", "path": "/Users/david/projects/bambi" }
+    }
+  },
+  "enabledPlugins": { "bambi@bambi": true },
+  "permissions": {
+    "allow": [
+      "Bash(bambi ls:*)",
+      "Bash(bambi init:*)",
+      "Bash(bambi check:*)",
+      "Bash(bambi plan:*)",
+      "Bash(bambi colour:*)",
+      "Bash(bambi log show:*)",
+      "Bash(bambi printer status:*)"
+    ]
+  }
+}

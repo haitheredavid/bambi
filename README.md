@@ -33,7 +33,15 @@ just setup   # uv sync, create .env, flatten Bambu Studio profiles into profiles
 
 ### the agentic spice
 
-Live modeling with claude runs through the [blender-mcp](https://github.com/ahujasid/blender-mcp) add-on. If you run claude code (or whatever shit you use), it should pick up the hacky `/new-session` skill in `.claude/skills/` for planning out and scaffolding a new modeling session.
+Live modeling with claude runs through the [blender-mcp](https://github.com/ahujasid/blender-mcp) add-on.
+
+bambi is also a Claude Code plugin (`plugin/`). This repo enables it in `.claude/settings.json`; any other repo can do the same, e.g. [blender-sessions](https://github.com/haitheredavid/blender-sessions), whose print packs bambi slices. It puts `bambi` on the PATH and adds skills:
+
+- `/bambi:new-session <idea>`: plan, scaffold and model a new print
+- `/bambi:print <session | models/<m>>`: readiness triage (mesh validity, bed fit, orientation, supports, thin walls, adhesion, joints, colour, material, provenance), then route each open issue to `print-orient`, `print-fit`, `print-colour`, `print-run` or `print-log`
+- `print-log` writes what happened (`results.json`) and recommends model changes back upstream
+
+`bambi check` slices every part into layers and flags flat ceilings, sagging ledges, long bridges, islands and walls the nozzle can't lay down. It's the stuff the 45° face check missed when the witch-frame lip drooped.
 
 ### recipes
 
@@ -42,6 +50,7 @@ The `justfile` wraps the common commands:
 ```sh
 just                       # list all commands
 just new phone-stand       # sessions/2026-09-26-phone-stand/ with an mm-unit model.blend, opened in Blender
+just plan phone-stand      # what's left before it's worth slicing
 just build phone-stand     # export STL, then run checks, then slice to out/*.gcode.3mf
 just studio phone-stand    # open in Bambu Studio -> Print plate sends via Bambu Cloud
 just status                # printer status (LAN)

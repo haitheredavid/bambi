@@ -30,8 +30,13 @@ fmt:
     uv run ruff check --fix .
     uv run ruff format .
 
-# lint + tests
-ci: lint test
+# validate the Claude Code plugin and marketplace manifests
+plugin-check:
+    claude plugin validate plugin --strict
+    claude plugin validate . --strict
+
+# lint + tests + plugin manifests
+ci: lint test plugin-check
 
 # --- sessions ----------------------------------------------------------------
 
@@ -56,17 +61,37 @@ orient session:
 export session:
     {{bambi}} export {{session}}
 
-# printability checks
+# printability checks (mesh + layer analysis)
 check session:
     {{bambi}} check {{session}}
+
+# readiness triage: what's left before slicing (rows A-J)
+plan session *flags:
+    {{bambi}} plan "$@"
+
+# rank print orientations per part (--part X, --apply N)
+orient-rank session *flags:
+    {{bambi}} orient "$@"
+
+# colour strategies: AMS swaps vs glue-in, paint, engrave
+colour session:
+    {{bambi}} colour {{session}}
+
+# make a print pack sliceable (writes its session.toml)
+init pack *flags:
+    {{bambi}} init "$@"
+
+# runs and recommendations in results.json
+log session:
+    {{bambi}} log show {{session}}
 
 # slice with the session's profiles (extra flags pass through, e.g. --filament petg_hf)
 slice session *flags:
     {{bambi}} slice "$@"
 
-# export -> check -> slice
-build session:
-    {{bambi}} build {{session}}
+# export -> check -> slice (--strict stops on blocking checks)
+build session *flags:
+    {{bambi}} build "$@"
 
 # studio render of model.blend on the P1S plate -> sessions/<s>/render.png (--framing fit|wide)
 render session *flags:

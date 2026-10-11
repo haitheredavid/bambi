@@ -136,3 +136,8 @@ def path_for(kind: str, local: str) -> Path:
     if not path.exists():
         raise FileNotFoundError(f"{path} missing; run `bambi profiles sync`")
     return path
+
+
+def local_names(kind: str, root: Path | None = None) -> list[str]:
+    root = root or get_settings().profiles_dir
+    return sorted(p.stem for p in (root / kind).glob("*.json"))

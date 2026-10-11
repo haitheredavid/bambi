@@ -1,5 +1,13 @@
-"""Worksessions: dated folders under sessions/ holding a model and its outputs."""
+"""Print workspaces: a folder with a session.toml, a model, its exports and outputs.
 
+Two kinds:
+- "session": dated folders under sessions/ (bambi models these itself in model.blend).
+- "pack": a print pack another repo wrote (blender-sessions `models/<m>/print[/<pack>]/`):
+  parts.blend + stl/ + manifest.json, owned upstream. `bambi init` adds a session.toml with
+  [paths] pointing at them; bambi never rewrites the pack's own files.
+"""
+
+import json
 import re
 import shutil
 import tomllib
@@ -7,7 +15,9 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
+from bambi import profiles, spec
 from bambi.config import get_settings
+from bambi.results import Results
 from bambi.slicer import Filament
 
 TEMPLATE = "_template"
@@ -26,24 +36,92 @@ class Session:
     path: Path
 
     @property
+    def config(self) -> dict:
+        return tomllib.loads((self.path / "session.toml").read_text())
+
+    @property
+    def paths(self) -> dict:
+        return self.config.get("paths", {})
+
+    @property
+    def kind(self) -> str:
+        return self.paths.get("kind", "session")
+
+    @property
+    def is_pack(self) -> bool:
+        return self.kind == "pack"
+
+    @property
     def name(self) -> str:
-        return self.path.name
+        """Folder name for sessions; session.toml `name` for packs (their folder is print/)."""
+        return (
+            self.config.get("name", self.path.name) if self.is_pack else self.path.name
+        )
 
     @property
     def blend(self) -> Path:
-        return self.path / "model.blend"
+        return self.path / self.paths.get("blend", "model.blend")
 
     @property
     def exports(self) -> Path:
-        return self.path / "exports"
+        return self.path / self.paths.get("exports", "exports")
 
     @property
     def out(self) -> Path:
-        return self.path / "out"
+        return self.path / self.paths.get("out", "out")
 
     @property
-    def config(self) -> dict:
-        return tomllib.loads((self.path / "session.toml").read_text())
+    def spec(self) -> dict | None:
+        return spec.load(self.path)
+
+    def spec_hash(self) -> str | None:
+        return spec.spec_hash(self.path, s) if (s := self.spec) else None
+
+    def results(self) -> Results:
+        source = self.config.get("source", {}) if self.is_pack else {}
+        return Results.load(
+            self.path,
+            model=source.get("model", self.name),
+            pack=source.get("pack", ""),
+        )
+
+    def process_settings(self) -> dict:
+        """The [slice] process profile with [slice.overrides] applied (string values)."""
+        sl = self.config.get("slice", {})
+        data = json.loads(
+            profiles.path_for(
+                "process", sl.get("process", "0.20mm_standard")
+            ).read_text()
+        )
+        data.update({k: str(v) for k, v in sl.get("overrides", {}).items()})
+        return data
+
+    def layer_height(self) -> float:
+        try:
+            return float(self.process_settings().get("layer_height", 0.2))
+        except (FileNotFoundError, ValueError):
+            return 0.2
+
+    def supports_on(self) -> bool:
+        try:
+            return str(self.process_settings().get("enable_support", "0")) in (
+                "1",
+                "true",
+            )
+        except FileNotFoundError:
+            return False
+
+    def in_repo(self) -> bool:
+        """Under bambi's own sessions/ (these feed the README gallery)."""
+        return self.path.resolve().is_relative_to(get_settings().sessions_dir.resolve())
+
+    def material(self) -> str:
+        """'petg' etc. for weight estimates: filament 1's profile, else the spec."""
+        profile = self.filaments()[0].profile or ""
+        for m in ("petg", "pla", "abs", "asa", "tpu"):
+            if m in profile:
+                return m
+        return spec.material_of(self.spec) if self.spec else "pla"
 
     def render_options(self) -> dict:
         """[render] framing (fit|wide) and scene for `bambi render`, with defaults."""
@@ -180,8 +258,16 @@ def list_all(base: Path | None = None) -> list[Session]:
     ]
 
 
-def resolve(ref: str, base: Path | None = None) -> Session:
-    """Find a session by exact folder name, or by unique substring (e.g. 'phone-stand')."""
+def resolve(ref: str, base: Path | None = None, pack: str | None = None) -> Session:
+    """Find a workspace by path, or a session by exact folder name or unique substring.
+
+    Paths: a folder with session.toml; a blender-sessions model folder (models/<m>/, with
+    model.toml) means its print/ pack, or print/<pack> with `pack`.
+    """
+    path = Path(ref).expanduser()
+    looks_like_path = "/" in ref or ref.startswith((".", "~"))
+    if looks_like_path or (path.is_dir() and _is_workspace(path)):
+        return _workspace(path, pack)
     all_sessions = list_all(base)
     exact = [s for s in all_sessions if s.name == ref]
     if exact:
@@ -192,3 +278,130 @@ def resolve(ref: str, base: Path | None = None) -> Session:
     if not matches:
         raise LookupError(f"no session matches {ref!r}")
     raise LookupError(f"{ref!r} is ambiguous: {', '.join(s.name for s in matches)}")
+
+
+def _is_workspace(path: Path) -> bool:
+    return any((path / f).exists() for f in ("session.toml", "model.toml", spec.FILE))
+
+
+def _workspace(path: Path, pack: str | None) -> Session:
+    path = path.resolve()  # Bambu Studio and Blender need absolute paths
+    if not path.is_dir():
+        raise LookupError(f"no such folder: {path}")
+    if (path / "model.toml").exists():  # a blender-sessions model
+        model, path = path, path / "print" / (pack or "")
+        if not (path / spec.FILE).exists() and not (path / "session.toml").exists():
+            packs = sorted(
+                p.parent.name for p in (model / "print").glob("*/" + spec.FILE)
+            )
+            raise LookupError(
+                f"no print pack at {path}; run `blend print-pack` first"
+                + (
+                    f" (other packs: {', '.join(str(model / 'print' / p) for p in packs)})"
+                    if packs
+                    else ""
+                )
+            )
+    elif pack:
+        path = path / pack
+    if (path / "session.toml").exists():
+        return Session(path)
+    if (path / spec.FILE).exists():
+        raise LookupError(
+            f"{path} is a print pack without a session; run `bambi init {path}`"
+        )
+    raise LookupError(f"{path} has no session.toml")
+
+
+PACK_TOML = """name = "{name}"
+created = "{created}"
+intent = {intent}
+
+[paths]                       # a print pack: the files below belong to the modelling repo
+kind = "pack"
+blend = "parts.blend"
+exports = "stl"
+out = "out"                   # bambi's: sliced files (gitignore it upstream)
+
+[source]                      # what `bambi init` read; `bambi status` compares the live spec
+repo = "{repo}"
+model = "{model}"
+pack = "{pack}"
+spec_created = "{spec_created}"
+spec_hash = "{spec_hash}"
+
+[slice]
+machine = "p1s_0.4"           # profiles/machine/<name>.json
+process = "{process}"
+filament = "{filament}"
+plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plate, Supertack Plate
+orient = false                # packs arrive in print orientation; Bambu's auto-orient fights it
+arrange = true
+{assemble}{overrides}
+[print]
+ams_slot = 0                  # AMS tray (0-15), or -1 for external spool
+{filaments}"""
+
+
+def init_pack(
+    directory: Path, process: str = "0.20mm_standard", force: bool = False
+) -> Session:
+    """Write session.toml into a print pack from its spec (manifest.json)."""
+    directory = directory.resolve()
+    toml = directory / "session.toml"
+    if toml.exists() and not force:
+        raise FileExistsError(toml)
+    sp = spec.load(directory)
+    if sp is None:
+        raise LookupError(f"no {spec.FILE} in {directory}")
+    available = profiles.local_names("filament")
+    fils = spec.filaments(sp, available)
+    if missing := [n for n, f in enumerate(fils, start=1) if not f["profile"]]:
+        raise LookupError(
+            f"no local filament profile matches filament(s) {missing} "
+            f"({', '.join(fils[n - 1]['material'] for n in missing)}); "
+            f"have {', '.join(available)}"
+        )
+    policy = spec.support_policy(sp)
+    overrides = spec.SUPPORT_OVERRIDES.get(policy or "auto", {})
+    over = ""
+    if overrides:
+        over = (
+            f"\n[slice.overrides]             # supports = {policy!r} from the spec\n"
+            + "".join(f"{k} = {json.dumps(v)}\n" for k, v in overrides.items())
+        )
+    fil_block = ""
+    if len(fils) > 1:
+        fil_block = "\n" + "".join(
+            f"[[filaments]]                 # filament {n}: {f['material']}\n"
+            f'profile = "{f["profile"]}"\n'
+            + (f'color = "{f["color"]}"\n' if f.get("color") else "")
+            + f"ams_slot = {n - 1}\n\n"
+            for n, f in enumerate(fils, start=1)
+        )
+        if objs := spec.object_filaments(sp):
+            fil_block += "[objects]\n" + "".join(
+                f"{k} = {v}\n" for k, v in objs.items()
+            )
+    model = sp.get("model", directory.parent.name)
+    pack = sp.get("pack") or ("print" if directory.name == "print" else directory.name)
+    text = PACK_TOML.format(
+        name=f"{model}-{pack}" if pack != "print" else model,
+        created=datetime.now().astimezone().date().isoformat(),
+        intent=json.dumps(sp.get("intent") or f"print pack of {model}"),
+        repo=(sp.get("source") or {}).get("repo", ""),
+        model=model,
+        pack=pack,
+        spec_created=sp.get("created", ""),
+        spec_hash=spec.spec_hash(directory, sp),
+        process=process,
+        filament=fils[0]["profile"],
+        assemble="assemble = true              # colour parts sit inside others\n"
+        if spec.needs_assemble(sp)
+        else "",
+        overrides=over,
+        filaments=fil_block,
+    )
+    tomllib.loads(text)
+    toml.write_text(text)
+    return Session(directory)

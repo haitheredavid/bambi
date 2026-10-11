@@ -1,0 +1,14 @@
+{
+  "name": "bambi",
+  "owner": { "name": "David Morgan", "email": "haitheredavid@gmail.com" },
+  "metadata": {
+    "description": "Print-readiness for Blender models: check, orient, split, colour, slice and print on a Bambu Lab P1S."
+  },
+  "plugins": [
+    {
+      "name": "bambi",
+      "source": "./plugin",
+      "description": "Get a Blender model ready to print on a Bambu Lab P1S, slice it with Bambu Studio, print it, and feed results back to the model."
+    }
+  ]
+}

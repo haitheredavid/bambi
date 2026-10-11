@@ -1,0 +1,85 @@
+{
+  "model": "witch-frame",
+  "created": "2026-10-11T12:20:21-04:00",
+  "units": "mm",
+  "blend": "models/witch-frame/print/coupon/parts.blend",
+  "stl_dir": "models/witch-frame/print/coupon/stl",
+  "printer": "Bambu Lab P1S",
+  "bed_mm": 256.0,
+  "material": "PETG (Insignia, black)",
+  "orientation": "offcuts as modelled, back face down; tenons laid on a side face",
+  "hardware": [],
+  "assembly": [
+    "Round 2 (round 1 picked TENON_CLEAR 0.10): two 0.10 coupons (1 notch) of the E seam. C10_Flat has the frame's flat 3.7 mm glazing lip at z 9; C10_Chamfer fills the rabbet corner under it with a 45 deg wedge.",
+    "Slice with supports on, build plate only (normal, 0.2 top gap): Flat's lip needs them, Chamfer's should get none. Compare the two lip undersides.",
+    "The full chamfer takes the glazing's seat; if it wins, the frame needs a deeper rabbet or a narrower wedge."
+  ],
+  "parts": [
+    {
+      "name": "Coupon_C10_Flat_Tenon",
+      "size": [
+        9.67,
+        32.0,
+        3.5
+      ],
+      "volume_cm3": 1.0,
+      "manifold": true,
+      "fits_bed": true,
+      "flat": true,
+      "stl": "stl/Coupon_C10_Flat_Tenon.stl"
+    },
+    {
+      "name": "Coupon_C10_Flat_A",
+      "size": [
+        11.67,
+        20.5,
+        16.24
+      ],
+      "volume_cm3": 2.37,
+      "manifold": true,
+      "fits_bed": true,
+      "flat": false,
+      "stl": "stl/Coupon_C10_Flat_A.stl",
+      "supports": {
+        "policy": "build-plate",
+        "why": "flat lip at z9"
+      }
+    },
+    {
+      "name": "Coupon_C10_Chamfer_A",
+      "size": [
+        11.67,
+        20.5,
+        16.24
+      ],
+      "volume_cm3": 2.51,
+      "manifold": true,
+      "fits_bed": true,
+      "flat": false,
+      "stl": "stl/Coupon_C10_Chamfer_A.stl"
+    }
+  ],
+  "total_volume_cm3": 12.0,
+  "schema": "print-spec/1",
+  "pack": "coupon",
+  "intent": "E-seam coupon: flat vs chamfered glazing lip",
+  "coupons": [
+    {
+      "id": "tenon-E",
+      "param": "builders/joinery.py:TENON_CLEAR",
+      "values": [
+        0.1
+      ],
+      "parts": {
+        "0.10": [
+          "Coupon_C10_Chamfer_A",
+          "Coupon_C10_Flat_A",
+          "Coupon_C10_Flat_Tenon"
+        ]
+      },
+      "rule": "tightest that slides in by hand"
+    }
+  ],
+  "feedback_applied": [],
+  "feedback_declined": []
+}
