@@ -66,9 +66,21 @@ jobs:
           tmp=$(mktemp -d) && uvx --from "$whl" bambi skills install --target codex --project "$tmp"
           test -f "$tmp/.agents/skills/print/SKILL.md"
       - name: GitHub release
-        run: gh release create "$TAG" dist/* --title "$TAG" --generate-notes
+        # re-runnable: upload (overwrite) assets if the release already exists
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --generate-notes
+          fi
         env: { GH_TOKEN: "${{ github.token }}" }
       - name: publish npm
         working-directory: npm
-        run: npm publish --provenance
+        # skip when this version is already on npm (re-runs)
+        run: |
+          if npm view "$(node -p 'require("./package.json").name')@${TAG#v}" version > /dev/null 2>&1; then
+            echo "already published"
+          else
+            npm publish --provenance
+          fi
         env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
