@@ -1,0 +1,82 @@
+{
+  "schema": "print-results/1",
+  "model": "2026-10-11-witch-frame-coupon",
+  "pack": "",
+  "runs": [
+    {
+      "id": "che-20261011-01",
+      "kind": "check",
+      "at": "2026-10-11T12:44:25-04:00",
+      "severity": "warn",
+      "summary": {
+        "ok": 4,
+        "warn": 2,
+        "block": 0
+      },
+      "layer_height": 0.16,
+      "supports": true,
+      "report": "out/check.json",
+      "spec_hash": null
+    },
+    {
+      "id": "pri-20261011-01",
+      "kind": "print",
+      "at": "2026-10-11T12:44:25-04:00",
+      "slice": null,
+      "outcome": "partial",
+      "failures": [
+        {
+          "part": "Coupon_C*_A/B",
+          "kind": "sag",
+          "z_mm": 9.0,
+          "note": "round 1, supports off (backfilled from notes.md): the offcuts' flat 3.7 mm ledge at z 9 printed as sagging strands; gable-roofed mortise fine"
+        }
+      ],
+      "note": "round 1, supports off (backfilled from notes.md): the offcuts' flat 3.7 mm ledge at z 9 printed as sagging strands; gable-roofed mortise fine"
+    },
+    {
+      "id": "fit-20261011-01",
+      "kind": "fit",
+      "at": "2026-10-11T12:44:25-04:00",
+      "coupon": "tenon-E",
+      "param": "builders/joinery.py:TENON_CLEAR",
+      "value": 0.1,
+      "material": "petg",
+      "note": "round 1 (backfilled from notes.md): 0.10 per side best fit"
+    },
+    {
+      "id": "che-20261011-02",
+      "kind": "check",
+      "at": "2026-10-11T16:55:18-04:00",
+      "severity": "warn",
+      "summary": {
+        "ok": 4,
+        "warn": 2,
+        "block": 0
+      },
+      "layer_height": 0.16,
+      "supports": true,
+      "report": "out/check.json",
+      "spec_hash": null
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "rec-20261011-01",
+      "at": "2026-10-11T12:44:25-04:00",
+      "from": "pri-20261011-01",
+      "target": "blender-sessions models/witch-frame builder: rabbet lip underside",
+      "value": "45 deg chamfer",
+      "reason": "flat 3.7 mm PETG ledge sags unsupported; corner pieces carry ~920 mm\u00b2 of it at z 9 and ~360 mm\u00b2 at z 4",
+      "alt": "[[print.part]] match=\"Piece_*\" supports=\"build-plate\""
+    },
+    {
+      "id": "rec-20261011-02",
+      "at": "2026-10-11T12:44:25-04:00",
+      "from": "fit-20261011-01",
+      "target": "builders/joinery.py:TENON_CLEAR",
+      "value": 0.1,
+      "reason": "coupon tenon-E pick (PETG). round 1 (backfilled from notes.md): 0.10 per side best fit"
+    }
+  ]
+}

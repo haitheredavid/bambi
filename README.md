@@ -26,16 +26,29 @@ This is all built on macOS. You'll need blender, bambu studio, [uv](https://docs
 brew install --cask blender bambu-studio
 brew install uv just
 
-just setup   # uv sync, create .env, flatten Bambu Studio profiles into profiles/
+just setup   # uv sync, create .env, run `bambi doctor`
+uv run bambi workspace init ~/projects/prints   # where sessions go
 ```
 
-`.env` is only needed if you're printing over LAN. Fill in the printer's IP, access code and serial (they're on the P1S screen under Settings > Network and Settings > Device). Don't fucking commit it.
+`.env` (in `~/.config/bambi/` or the workspace) is only needed if you're printing over LAN. Fill in the printer's IP, access code and serial (they're on the P1S screen under Settings > Network and Settings > Device). Don't fucking commit it.
 
 ### the agentic spice
 
 Live modeling with claude runs through the [blender-mcp](https://github.com/ahujasid/blender-mcp) add-on.
 
-bambi is also a Claude Code plugin (`plugin/`). This repo enables it in `.claude/settings.json`; any other repo can do the same, e.g. [blender-sessions](https://github.com/haitheredavid/blender-sessions), whose print packs bambi slices. It puts `bambi` on the PATH and adds skills:
+bambi ships its skills (`src/bambi/skills/`) to Claude Code, Codex and opencode, so any repo can use them, e.g. [blender-sessions](https://github.com/haitheredavid/blender-sessions), whose print packs bambi slices. Pick a channel:
+
+| | Claude Code | Codex | opencode |
+|---|---|---|---|
+| **plugin** | `/plugin marketplace add haitheredavid/bambi`, then `/plugin install bambi@bambi` (puts `bambi` on PATH too) | | |
+| **uv** | `uv tool install git+https://github.com/haitheredavid/bambi@v0.2.0`, then `bambi skills install --target claude` | `... --target codex` | `... --target opencode` |
+| **npm** | `npx @notrealarchitecture/bambi install --target claude` | `... --target codex` | `... --target opencode` |
+
+Add `--project .` to install into a repo instead of your home. The skills need the `bambi` CLI on PATH (plugin and uv give you that; with npm it runs through `uvx`). `bambi doctor` checks the lot. Starting a print always asks: a hook in Claude Code, a permission rule in opencode (`skills install` adds it), and the CLI itself refuses `--start` without a terminal or `-y`.
+
+Print work lives in a workspace, not in this repo: `bambi workspace init ~/projects/prints` scaffolds one (sessions, gallery README, agent config) and makes it the default.
+
+The skills:
 
 - `/bambi:new-session <idea>`: plan, scaffold and model a new print
 - `/bambi:print <session | models/<m>>`: readiness triage (mesh validity, bed fit, orientation, supports, thin walls, adhesion, joints, colour, material, provenance), then route each open issue to `print-orient`, `print-fit`, `print-colour`, `print-run` or `print-log`
@@ -66,15 +79,4 @@ Two ways to get it to the printer:
 
 ## prints
 
-Every slice drops the plate preview in `sessions/<session>/thumb.png`, and `just render <session>` swaps in a studio render. Click a tile to spin its STL in GitHub's 3D viewer; hover for what it's for.
-
-<!-- gallery:start -->
-<p align="center">
-<a href="sessions/2026-09-30-cat-putty-knife-slope/exports/Eyes.stl"><img src="docs/gallery/2026-09-30-cat-putty-knife-slope.png" width="24%" alt="2026-09-30-cat-putty-knife-slope" title="One-piece cat putty knife, pizza-server style: 150 mm PLA blade whose top slopes up steadily from a 1.2 mm edge into the handle, no neck step. Sibling of cat-putty-knife v2; orange body, inlaid blue eyes."></a>
-<a href="sessions/2026-09-30-cat-putty-knife/exports/Knife.stl"><img src="docs/gallery/2026-09-30-cat-putty-knife.png" width="24%" alt="2026-09-30-cat-putty-knife" title="6&quot; (150 mm) PLA putty knife for spreading joint compound on medium wall patches; orange handle ends in a cat head with ears and engraved eyes, all one colour. v2: tang-like spine fades from the handle into a wide blade (v1 snapped at the neck)."></a>
-<a href="sessions/2026-09-27-plate-scraper/exports/Scraper.stl"><img src="docs/gallery/2026-09-27-plate-scraper.png" width="24%" alt="2026-09-27-plate-scraper" title="Simple PLA scraper (flat wedge + handle) for lifting stray filament off the textured PEI plate; end-to-end smoke test of the bambi stack."></a>
-<a href="sessions/2026-09-26-door-sampler/exports/DoorSampler.stl"><img src="docs/gallery/2026-09-26-door-sampler.png" width="24%" alt="2026-09-26-door-sampler" title="Desk display of five world door styles (shoji, Dutch, Moorish, Romanesque, Gothic), each in its own frame on a shared base; first end-to-end pipeline test"></a>
-<a href="sessions/2026-09-26-colossus-tmg/exports/Base.stl"><img src="docs/gallery/2026-09-26-colossus-tmg.png" width="24%" alt="2026-09-26-colossus-tmg" title="Prototype Protoss Colossus for StarCraft TMG: ~170 mm tall, 120 mm beveled base with terrain and 5x3 mm magnet slot, multi-part kit (base, hull, 4 legs) joined with pegs and glue."></a>
-<a href="sessions/2026-09-26-calib-cube/exports/calib_cube.stl"><img src="docs/gallery/2026-09-26-calib-cube.png" width="24%" alt="2026-09-26-calib-cube" title="2026-09-26-calib-cube"></a>
-</p>
-<!-- gallery:end -->
+The prints themselves live in a separate workspace (mine is `bambi-prints`), not in this repo: each session's `.blend`, STLs, slice settings, notes, results and a gallery of plate previews and studio renders. `examples/witch-frame-coupon/` is one real session kept here as a demo and test fixture.

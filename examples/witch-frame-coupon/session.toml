@@ -1,0 +1,48 @@
+name = "witch-frame-coupon"
+created = "2026-10-11"
+intent = "witch-frame E-seam coupon. Round 1: tenon clearance 0.10/0.15/0.20 (0.10 won). Round 2: two 0.10 coupons, flat glazing lip vs 45 deg chamfered lip, sliced with supports"
+
+[slice]
+machine = "p1s_0.4"           # profiles/machine/<name>.json
+process = "0.16mm_optimal"    # profiles/process/<name>.json
+filament = "insignia_petg"    # profiles/filament/<name>.json
+plate = "Textured PEI Plate"  # or Cool Plate, Engineering Plate, High Temp Plate, Supertack Plate
+orient = false                # keep the print pack orientation: offcuts back face down, gable roof up
+# arrange = true              # let Bambu Studio auto-arrange on the plate
+# assemble = true             # multi-colour: merge all objects into one (inlays, floating parts)
+
+[slice.overrides]             # offcuts' flat 3.7 mm ledge at z 9 sagged unsupported (see notes.md)
+enable_support = 1
+support_type = "normal(auto)"
+support_on_build_plate_only = 1
+support_top_z_distance = 0.2
+
+[source]                      # blender-sessions print pack this session came from
+repo = "blender-sessions"
+pack = "models/witch-frame/print/coupon"
+manifest_created = "2026-10-11T12:20:21-04:00"
+
+[render]                      # `bambi render` studio shot
+# framing = "fit"             # fit: zoom to the models; wide: the whole plate
+# scene = "Scene"             # scene to render (default: the saved one)
+
+[print]
+ams_slot = 3                  # AMS tray (0-15), or -1 for external spool
+
+# --- Multi-color (AMS) ---------------------------------------------------------
+# One filament per Blender object: split multi-color parts into separate objects.
+# Listing [[filaments]] replaces [slice].filament and [print].ams_slot.
+# `bambi printer ams <session> --write` fills this from what's loaded in the AMS.
+# Entries with only ams_slot get profile/colour from the AMS via `bambi slice --ams`.
+# [[filaments]]               # filament 1
+# profile = "pla_basic"       # profiles/filament/<name>.json
+# color = "#FFFFFF"           # preview colour in Bambu Studio (optional)
+# ams_slot = 0                # AMS tray 0-15 (default: filament number - 1)
+#
+# [[filaments]]               # filament 2
+# profile = "pla_basic"
+# color = "#000000"
+# ams_slot = 1
+#
+# [objects]                   # exported STL name (no .stl) -> filament number; unlisted = 1
+# Logo = 2
