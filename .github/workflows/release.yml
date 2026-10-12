@@ -74,6 +74,9 @@ jobs:
             gh release create "$TAG" dist/* --title "$TAG" --generate-notes
           fi
         env: { GH_TOKEN: "${{ github.token }}" }
+      # Trusted publishing (OIDC, id-token: write above): no NPM_TOKEN. Needs npm >= 11.5.1
+      # and the package's trusted publisher set to this repo + release.yml on npmjs.com.
+      - run: npm install -g npm@latest
       - name: publish npm
         working-directory: npm
         # skip when this version is already on npm (re-runs)
@@ -83,4 +86,3 @@ jobs:
           else
             npm publish --provenance
           fi
-        env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
