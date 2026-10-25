@@ -53,8 +53,8 @@ class SliceJob:
     object_filaments: list[int] | None = None
     orient: bool = True
     arrange: bool = True
-    # Multi-colour only: load all models as parts of one object, keeping their relative
-    # positions. Needed for inlays and details that don't touch the bed.
+    # Load all models as parts of one object, keeping their relative positions. Needed for
+    # inlays and details that don't touch the bed, in one colour or several.
     assemble: bool = False
     # Process keys to override, e.g. {"wall_loops": 5}. Values are stringified like the profiles.
     overrides: dict = field(default_factory=dict)
@@ -88,6 +88,11 @@ class SliceJob:
         return len(self.filaments) > 1
 
     @property
+    def assemble_input(self) -> bool:
+        """Load models through an assemble list: needed for several filaments or assembling."""
+        return self.multicolor or self.assemble
+
+    @property
     def filament_names(self) -> str:
         return " + ".join(f.profile or "?" for f in self.filaments)
 
@@ -112,7 +117,7 @@ class SliceJob:
         return configs
 
     def assemble_list(self) -> dict:
-        """Multi-colour input for --load-assemble-list: one plate, each model on its filament.
+        """Input for --load-assemble-list: one plate, each model on its filament.
 
         Bambu Studio 2.x ignores --load-filament-ids for plain model inputs, so multi-colour
         jobs load models this way instead. The CLI can't combine it with --orient/--arrange;
@@ -150,9 +155,11 @@ class SliceJob:
         filaments = filament_files or [
             profiles.path_for("filament", f.profile) for f in self.filaments
         ]
-        if self.multicolor:
+        if self.assemble_input:
             if assemble_file is None:
-                raise ValueError("multi-colour jobs need an assemble list file")
+                raise ValueError(
+                    "multi-colour and assembled jobs need an assemble list file"
+                )
             inputs = [
                 "--load-assemble-list",
                 str(assemble_file),
@@ -231,7 +238,7 @@ def run(job: SliceJob) -> SliceResult:
             path.write_text(json.dumps(data))
             filament_files.append(path)
         assemble_file = None
-        if job.multicolor:
+        if job.assemble_input:
             assemble_file = Path(tmp) / "assemble.json"
             assemble_file.write_text(json.dumps(job.assemble_list()))
         proc = subprocess.run(

@@ -67,6 +67,25 @@ def test_multicolor_assemble_merges_objects(tmp_path):
     assert [o["assemble_index"] for o in plate["objects"]] == [[1], [1]]
 
 
+def test_single_filament_assemble_keeps_parts_together(tmp_path):
+    # One colour, but the inlay floats inside its host: plain model inputs would be
+    # arranged apart, so assembling must go through the assemble list too.
+    job = slicer.SliceJob(
+        models=[Path("body.stl"), Path("inlay.stl")],
+        output=tmp_path / "x.gcode.3mf",
+        assemble=True,
+    )
+    [plate] = job.assemble_list()["plates"]
+    assert [(o["filaments"], o["assemble_index"]) for o in plate["objects"]] == [
+        ([1], [1]),
+        ([1], [1]),
+    ]
+    asm = tmp_path / "assemble.json"
+    cmd = job.command(tmp_path / "process.json", [tmp_path / "f1.json"], asm)
+    assert cmd[cmd.index("--load-assemble-list") + 1] == str(asm)
+    assert "body.stl" not in cmd and "--arrange" not in cmd
+
+
 def test_filament_ids_validated(tmp_path):
     out = tmp_path / "x.gcode.3mf"
     two = [slicer.Filament(), slicer.Filament()]
